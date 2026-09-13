@@ -25,11 +25,7 @@ class MbAdsService extends ChangeNotifier {
 
   RewardedAd? _rewardedAd;
   bool _rewardedBusy = false;
-  InterstitialAd? _interstitialAd;
-  bool _interstitialLoading = false;
 
-  int _savesSinceInterstitial = 0;
-  DateTime? _lastInterstitialAt;
 
   DateTime? _adFreeUntil;
 
@@ -79,10 +75,7 @@ class MbAdsService extends ChangeNotifier {
         MbConfig.admobTestBannerUnitId,
       );
 
-  String get interstitialUnitId => _resolveUnit(
-        MbRemoteConfigService.instance.config?.interstitialUnitId ?? '',
-        MbConfig.admobTestInterstitialUnitId,
-      );
+
 
   String get rewardedUnitId => _resolveUnit(
         MbRemoteConfigService.instance.config?.rewardedUnitId ?? '',
@@ -197,97 +190,7 @@ class MbAdsService extends ChangeNotifier {
     notifyListeners();
   }
 
-  // ── interstitial: occasionally after saving a transaction ────────────────
 
-  /// Call after every transaction save. Loads an interstitial after
-  /// [_kSavesPerInterstitial] saves (respecting the cooldown) and shows it
-  /// on the NEXT eligible save — v2.2.0: the old code auto-showed inside
-  /// `onAdLoaded`, i.e. whenever the network finished loading, at a random
-  /// moment unrelated to any user action (AdMob interstitial policy: show
-  /// at natural breaks only). Cache-and-show-on-next-trigger is both
-  /// policy-safe and deterministic.
-  static const int _kSavesPerInterstitial = 8;
-  static const Duration _kInterstitialCooldown = Duration(minutes: 12);
-
-  Future<void> noteTransactionSaved() async { return; 
-    if (!adsEnabled || adFreeActive) return;
-    _savesSinceInterstitial++;
-    if (_savesSinceInterstitial < _kSavesPerInterstitial) return;
-    final last = _lastInterstitialAt;
-    if (last != null &&
-        DateTime.now().difference(last) < _kInterstitialCooldown) {
-      return;
-    }
-    _savesSinceInterstitial = 0;
-    if (_interstitialAd != null) {
-      // A cached ad is shown right HERE — a user action just happened
-      // (save + pop back to the list = natural break point).
-      _lastInterstitialAt = DateTime.now();
-      await maybeShowInterstitial();
-    } else {
-      // Preload only — shown on a later eligible save.
-      await _loadInterstitial();
-    }
-  }
-
-  Future<void> maybeShowInterstitial() async { return;
-    if (!adsEnabled || adFreeActive) return;
-    if (!await ensureSdk()) return;
-
-    final ad = _interstitialAd;
-    if (ad != null) {
-      _interstitialAd = null;
-      ad.fullScreenContentCallback = FullScreenContentCallback<InterstitialAd>(
-        onAdDismissedFullScreenContent: (d) => d.dispose(),
-        onAdFailedToShowFullScreenContent: (d, e) {
-          debugPrint('interstitial.show failed: $e');
-          d.dispose();
-        },
-      );
-      try {
-        await ad.show();
-      } catch (e) {
-        debugPrint('interstitial.show: $e');
-        ad.dispose();
-      }
-      return;
-    }
-    await _loadInterstitial();
-  }
-
-  /// Loads and CACHES an interstitial — never shows it directly.
-  Future<void> _loadInterstitial() async {
-    if (_interstitialAd != null || _interstitialLoading) return;
-    if (!await ensureSdk()) return;
-    _interstitialLoading = true;
-    try {
-      await InterstitialAd.load(
-        adUnitId: interstitialUnitId,
-        request: const AdRequest(),
-        adLoadCallback: InterstitialAdLoadCallback(
-          onAdLoaded: (ad) {
-            _interstitialLoading = false;
-            // v2.2.0: no ad.show() here — cache for the next natural break.
-            ad.fullScreenContentCallback =
-                FullScreenContentCallback<InterstitialAd>(
-              onAdDismissedFullScreenContent: (d) {
-                if (_interstitialAd == d) _interstitialAd = null;
-                d.dispose();
-              },
-            );
-            _interstitialAd = ad;
-          },
-          onAdFailedToLoad: (error) {
-            _interstitialLoading = false;
-            debugPrint('InterstitialAd failed: $error');
-          },
-        ),
-      );
-    } catch (e) {
-      _interstitialLoading = false;
-      debugPrint('InterstitialAd.load threw: $e');
-    }
-  }
 
   // ── app open ad ──────────────────────────────────────────────────────────
 
@@ -351,7 +254,6 @@ class MbAdsService extends ChangeNotifier {
   @override
   void dispose() {
     _rewardedAd?.dispose();
-    _interstitialAd?.dispose();
     super.dispose();
   }
 }

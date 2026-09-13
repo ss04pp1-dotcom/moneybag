@@ -350,10 +350,6 @@ class _TransactionEditScreenState extends State<TransactionEditScreen> {
     unawaited(MbNotifications.instance.evaluateBudgetAlerts(state));
     if (!mounted) return;
     Navigator.pop(context);
-    // v2.2.0: interstitial hook moved AFTER the pop — the full-screen ad
-    // (when eligible) now overlays the transaction list, a natural break,
-    // instead of the editor the user might still be interacting with.
-    unawaited(MbAdsService.instance.noteTransactionSaved());
   }
 
   Future<void> _delete() async {
