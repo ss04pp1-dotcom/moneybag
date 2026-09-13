@@ -209,7 +209,7 @@ class MbAdsService extends ChangeNotifier {
   static const int _kSavesPerInterstitial = 8;
   static const Duration _kInterstitialCooldown = Duration(minutes: 12);
 
-  Future<void> noteTransactionSaved() async {
+  Future<void> noteTransactionSaved() async { return; 
     if (!adsEnabled || adFreeActive) return;
     _savesSinceInterstitial++;
     if (_savesSinceInterstitial < _kSavesPerInterstitial) return;
@@ -230,7 +230,7 @@ class MbAdsService extends ChangeNotifier {
     }
   }
 
-  Future<void> maybeShowInterstitial() async {
+  Future<void> maybeShowInterstitial() async { return;
     if (!adsEnabled || adFreeActive) return;
     if (!await ensureSdk()) return;
 
