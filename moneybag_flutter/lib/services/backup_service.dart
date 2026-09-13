@@ -341,8 +341,9 @@ String _s(Map<String, dynamic> m, String k) => m[k]?.toString() ?? '';
 String? _nullableS(Map<String, dynamic> m, String k) => m[k]?.toString();
 int _i(Map<String, dynamic> m, String k) {
   final v = m[k];
-  if (v is int) return v;
-  return int.tryParse(v?.toString() ?? '') ?? 0;
+  if (v is num) return v.toInt();
+  if (v is String) return num.tryParse(v)?.toInt() ?? 0;
+  return 0;
 }
 bool _b(Map<String, dynamic> m, String k) => m[k] == true || m[k] == 'true' || m[k] == 1;
 
@@ -353,8 +354,15 @@ bool _bOrTrue(Map<String, dynamic> m, String k) {
   final v = m[k];
   return v == null ? true : (v == true || v == 'true' || v == 1);
 }
-DateTime _dt(Map<String, dynamic> m, String k) =>
-    DateTime.tryParse(m[k]?.toString() ?? '') ??
-    DateTime.fromMillisecondsSinceEpoch(0);
-DateTime? _nullableDt(Map<String, dynamic> m, String k) =>
-    m[k] == null ? null : DateTime.tryParse(m[k].toString());
+DateTime _dt(Map<String, dynamic> m, String k) {
+  final v = m[k];
+  if (v is int) return DateTime.fromMillisecondsSinceEpoch(v);
+  if (v is String) return DateTime.tryParse(v) ?? DateTime.fromMillisecondsSinceEpoch(0);
+  return DateTime.fromMillisecondsSinceEpoch(0);
+}
+DateTime? _nullableDt(Map<String, dynamic> m, String k) {
+  final v = m[k];
+  if (v is int) return DateTime.fromMillisecondsSinceEpoch(v);
+  if (v is String) return DateTime.tryParse(v);
+  return null;
+}

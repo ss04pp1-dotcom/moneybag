@@ -455,6 +455,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
                           '${L.savingsInGoals}: ${state.money(state.totalSaved)}'
                           ' · ${L.goalsCountMany(state.goals.length)}',
                     ),
+                    const SizedBox(height: 24),
+                    const MbAdBanner(),
                   ],
                 ),
               ),
