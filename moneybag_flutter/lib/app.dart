@@ -141,110 +141,42 @@ class _IntroSplashState extends State<_IntroSplash>
 
   @override
   Widget build(BuildContext context) {
-    const bg = Color(0xFF050914); // launch screen color — seamless handoff
+    const bg = Color(0xFFF9F9F9);
 
     return Scaffold(
       backgroundColor: bg,
-      body: Center(
-        child: AnimatedBuilder(
-          animation: _enter,
-          builder: (context, _) {
-            final t = _enter.value;
-            final logoT = Curves.easeOutBack
-                .transform((t.clamp(0.0, 1.0)).toDouble());
-            final nameT = Curves.easeOutCubic
-                .transform((((t - 0.30) / 0.45).clamp(0.0, 1.0)).toDouble());
-            final tagT = Curves.easeOutCubic
-                .transform((((t - 0.50) / 0.45).clamp(0.0, 1.0)).toDouble());
-
-            return Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                // ── logo with breathing glow ──
-                AnimatedBuilder(
-                  animation: _glow,
-                  builder: (context, child) => Container(
-                    width: 108,
-                    height: 108,
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(32),
-                      gradient: const LinearGradient(
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                        colors: [MbPalette.green, MbPalette.greenDark],
-                      ),
-                      boxShadow: [
-                        BoxShadow(
-                          color: MbPalette.green
-                              .withOpacity(0.22 + 0.18 * _glow.value),
-                          blurRadius: 34 + 14 * _glow.value,
-                          spreadRadius: 2 + 3 * _glow.value,
-                        ),
-                      ],
+      body: Stack(
+        fit: StackFit.expand,
+        children: [
+          Image.asset(
+            'assets/images/splash.png',
+            fit: BoxFit.cover,
+            errorBuilder: (_, __, ___) => const SizedBox.shrink(),
+          ),
+          Positioned(
+            left: 0,
+            right: 0,
+            bottom: 72,
+            child: Center(
+              child: AnimatedBuilder(
+                animation: _enter,
+                builder: (context, _) {
+                  return SizedBox(
+                    width: 140,
+                    height: 4,
+                    child: LinearProgressIndicator(
+                      value: _enter.value,
+                      minHeight: 4,
+                      backgroundColor: Colors.black.withOpacity(0.08),
+                      valueColor: const AlwaysStoppedAnimation<Color>(MbPalette.greenDeep),
+                      borderRadius: BorderRadius.circular(999),
                     ),
-                    child: child,
-                  ),
-                  child: Image.asset('assets/images/logo.png', width: 78, height: 78),
-                )
-                    .animateIn(
-                      scale: 0.62 + 0.38 * logoT,
-                      opacity: (t.clamp(0.0, 1.0)).toDouble(),
-                    ),
-
-                const SizedBox(height: 22),
-
-                // ── app name ──
-                Opacity(
-                  opacity: nameT,
-                  child: Transform.translate(
-                    offset: Offset(0, 10 * (1 - nameT)),
-                    child: const Text(
-                      'মানিব্যাগ',
-                      style: TextStyle(
-                        fontFamily: 'NotoSansBengali',
-                        color: MbPalette.darkText,
-                        fontSize: 26,
-                        fontWeight: FontWeight.w700,
-                        letterSpacing: 0.4,
-                      ),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 6),
-
-                // ── tagline ──
-                Opacity(
-                  opacity: tagT,
-                  child: Text(
-                    L.stringsFor(widget.state.language).tagline,
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      fontFamily: 'NotoSansBengali',
-                      color: MbPalette.darkText.withOpacity(0.55),
-                      fontSize: 12.5,
-                      height: 1.4,
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 34),
-
-                // ── boot progress bar ──
-                SizedBox(
-                  width: 120,
-                  height: 3,
-                  child: LinearProgressIndicator(
-                    value: t,
-                    minHeight: 3,
-                    backgroundColor: Colors.white.withOpacity(0.10),
-                    valueColor:
-                        const AlwaysStoppedAnimation<Color>(MbPalette.green),
-                    borderRadius: BorderRadius.circular(999),
-                  ),
-                ),
-              ],
-            );
-          },
-        ),
+                  );
+                },
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
