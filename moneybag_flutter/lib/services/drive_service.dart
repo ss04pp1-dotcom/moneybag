@@ -189,8 +189,8 @@ class MbDriveService {
     return [
       for (final f in files)
         MbDriveFile(
-          id: f['id'] as String,
-          name: f['name'] as String? ?? '',
+          id: f['id'].toString(),
+          name: f['name']?.toString() ?? '',
           sizeBytes: int.tryParse('${f['size'] ?? ''}') ?? 0,
           modified: DateTime.tryParse('${f['modifiedTime'] ?? ''}') ??
               DateTime.fromMillisecondsSinceEpoch(0),
