@@ -1,0 +1,33 @@
+allprojects {
+    repositories {
+        google()
+        mavenCentral()
+    }
+}
+
+rootProject.buildDir = "../build"
+subprojects {
+    project.buildDir = "${rootProject.buildDir}/${project.name}"
+}
+subprojects {
+    project.evaluationDependsOn(":app")
+}
+
+// v2.1: some old plugins (google_mlkit_commons 0.6.x declares compileSdk 29)
+// reference android:attr/lStar (API 31+), which fails resource linking with
+// "resource android:attr/lStar not found". Two layers of defence:
+//   1. gradle.afterProject bumps every library module to compileSdk 34 after
+//      its own build.gradle ran (so our value wins);
+//   2. the pub-cache copy of google_mlkit_commons is patched the same way
+//      (see DEPLOY.md section 9) in case timing differs on other machines.
+gradle.afterProject { project ->
+    if (project.plugins.hasPlugin("com.android.library")) {
+        project.android {
+            compileSdk 34
+        }
+    }
+}
+
+tasks.register("clean", Delete) {
+    delete rootProject.buildDir
+}

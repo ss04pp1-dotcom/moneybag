@@ -1,0 +1,44 @@
+name = "moneybag-api"
+main = "src/index.ts"
+compatibility_date = "2025-06-01"
+
+# ── Cloudflare D1 (SQL database) ────────────────────────────────────────────
+# After `npx wrangler d1 create moneybag-db`, paste the printed database_id
+# below (keep database_name as "moneybag-db").
+[[d1_databases]]
+binding = "DB"
+database_name = "moneybag-db"
+database_id = "22c99fa6-102e-446d-8bb8-f8798f9be7ed"
+
+# ── Secrets — NEVER put these in this file ─────────────────────────────────
+# Set each once with:
+#   npx wrangler secret put ADMIN_API_KEY
+#     → your own long random string (admin dashboard login key)
+#     → generate one:  openssl rand -hex 32
+#   npx wrangler secret put FCM_SERVICE_ACCOUNT
+#     → the FULL JSON of the Firebase service-account key file, pasted as ONE line
+# Optional (key rotation — add a new key, then remove the old one later):
+#   npx wrangler secret put ADMIN_API_KEYS
+#     → comma-separated list of ADDITIONAL valid keys
+# See README.md step 4 for where to get it.
+
+[observability]
+enabled = true
+
+[vars]
+# Public meta only — safe to commit.
+APP_VERSION = "2.0.0"
+
+# CORS origin allowlist, comma-separated. EMPTY = allow every origin
+# (the old behaviour — fine while the dashboard is hosted on Pages
+# under a *.pages.dev URL). Once you have a fixed dashboard domain, set it:
+#   ALLOWED_ORIGINS = "https://moneybag-admin.pages.dev"
+ALLOWED_ORIGINS = "https://moneybag-admin.pages.dev"
+
+# Rate limits per IP per minute (optional — these are the defaults).
+# Public endpoints must be high enough for app launches at scale;
+# users/sync is an unauthenticated write → keep it LOW;
+# admin must fit the global-push loop (1 request per 40 users).
+# RL_PUBLIC_PER_MIN = "240"
+# RL_SYNC_PER_MIN = "30"
+# RL_ADMIN_PER_MIN = "600"

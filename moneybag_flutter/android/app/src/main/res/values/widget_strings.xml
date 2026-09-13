@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- v2.1 — home screen widget picker description -->
+    <string name="widget_description">Today\'s spend and this month\'s total at a glance</string>
+</resources>

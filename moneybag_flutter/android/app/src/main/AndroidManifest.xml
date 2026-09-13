@@ -1,0 +1,99 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Google Drive backup + Admin API (remote config) -->
+    <uses-permission android:name="android.permission.INTERNET"/>
+    <!-- Real system notifications (Android 13+) -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
+    <!-- Exact reminder scheduling (falls back to inexact when denied) -->
+    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM"/>
+    <!-- v2.2.3: notification center offers the battery-optimization exemption
+         dialog — the #1 reason reminders never fire on aggressive OEM ROMs
+         (Walton/Symphony/MIUI-class). Sideloading app; Play policy N/A. -->
+    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS"/>
+    <!-- Camera for profile photo capture + receipt OCR -->
+    <uses-permission android:name="android.permission.CAMERA"/>
+    <uses-feature android:name="android.hardware.camera.any" android:required="false"/>
+    <!-- v2.1: fingerprint / device-PIN app lock -->
+    <uses-permission android:name="android.permission.USE_BIOMETRIC"/>
+    <!-- v2.2.0: AlarmManager alarms are cleared at reboot — the README
+         promised reboot-surviving reminders but this permission was
+         missing, so daily/weekly notifications never rescheduled after a
+         restart until the app was opened again. -->
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED"/>
+    <application
+        android:label="মানিব্যাগ"
+        android:name="${applicationName}"
+        android:icon="@mipmap/ic_launcher">
+        <!-- AdMob application id — Google's official TEST id. Replace with
+             your real AdMob App ID (ca-app-pub-XXXX~YYYY) when you create
+             your ad account, then rebuild once. Unit ids + on/off are
+             controlled from the Admin API at runtime. -->
+        <meta-data
+            android:name="com.google.android.gms.ads.APPLICATION_ID"
+            android:value="ca-app-pub-3940256099942544~3347511713"/>
+        <activity
+            android:name=".MainActivity"
+            android:exported="true"
+            android:launchMode="singleTop"
+            android:taskAffinity=""
+            android:theme="@style/LaunchTheme"
+            android:configChanges="orientation|keyboardHidden|keyboard|screenSize|smallestScreenSize|locale|layoutDirection|fontScale|screenLayout|density|uiMode"
+            android:hardwareAccelerated="true"
+            android:windowSoftInputMode="adjustResize">
+            <!-- Specifies an Android theme to apply to this Activity as soon as
+                 the Android process has started. This theme is visible to the user
+                 while the Flutter UI initializes. After that, this theme continues
+                 to determine the Window background behind the Flutter UI. -->
+            <meta-data
+              android:name="io.flutter.embedding.android.NormalTheme"
+              android:resource="@style/NormalTheme"
+              />
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.LAUNCHER"/>
+            </intent-filter>
+        </activity>
+        <!-- Don't delete the meta-data below.
+             This is used by the Flutter tool to generate GeneratedPluginRegistrant.java -->
+        <meta-data
+            android:name="flutterEmbedding"
+            android:value="2" />
+
+        <!-- v2.1: MoneyBag home screen widget (renders data pushed from Dart) -->
+        <receiver
+            android:name=".MbWidgetProvider"
+            android:exported="true"
+            android:label="মানিব্যাগ">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE"/>
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/moneybag_widget_info"/>
+        </receiver>
+
+        <!-- v2.2.1: repaints the widget after reboot / app update WITHOUT
+             starting Flutter — recovers the blank-widget state OEM launchers
+             (MIUI, ColorOS…) leave sideloaded apps in. Both actions are
+             protected broadcasts only the OS can send. -->
+        <receiver
+            android:name=".MbBootReceiver"
+            android:enabled="true"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED"/>
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED"/>
+            </intent-filter>
+        </receiver>
+    </application>
+    <!-- Required to query activities that can process text, see:
+         https://developer.android.com/training/package-visibility and
+         https://developer.android.com/reference/android/content/Intent#ACTION_PROCESS_TEXT.
+
+         In particular, this is used by the Flutter engine in io.flutter.plugin.text.ProcessTextPlugin. -->
+    <queries>
+        <intent>
+            <action android:name="android.intent.action.PROCESS_TEXT"/>
+            <data android:mimeType="text/plain"/>
+        </intent>
+    </queries>
+</manifest>

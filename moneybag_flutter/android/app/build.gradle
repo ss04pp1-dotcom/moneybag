@@ -1,0 +1,98 @@
+plugins {
+    id "com.android.application"
+    id "kotlin-android"
+    // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins.
+    id "dev.flutter.flutter-gradle-plugin"
+    // Firebase (FCM) — generates resources from google-services.json
+    id "com.google.gms.google-services"
+}
+
+// ── v2.2.0: real release signing ────────────────────────────────────────────
+// The release build used to fall back to the DEBUG key (Play Store rejects it
+// and every install shares one key). Standard keystore.properties flow:
+//
+//   1) Create a key once:
+//        keytool -genkey -v -keystore ~/moneybag-release.jks \
+//          -keyalg RSA -keysize 2048 -validity 10000 -alias moneybag
+//   2) Create android/keystore.properties (NEVER commit it — see .gitignore):
+//        storeFile=../../moneybag-release.jks     (path from android/app)
+//        storePassword=********
+//        keyAlias=moneybag
+//        keyPassword=********
+//   3) `flutter build appbundle` signs release automatically.
+//    Without the file present, the debug key is still used (dev convenience).
+def keystoreProps = new Properties()
+def keystorePropsFile = rootProject.file('keystore.properties')
+if (keystorePropsFile.exists()) {
+    keystoreProps.load(new FileInputStream(keystorePropsFile))
+}
+
+android {
+    namespace = "bd.moneybag.moneybag"
+    compileSdk = flutter.compileSdkVersion
+    ndkVersion = "25.1.8937393"
+
+    compileOptions {
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
+        // Required by flutter_local_notifications (java.time backports).
+        coreLibraryDesugaringEnabled = true
+    }
+
+    kotlinOptions {
+        jvmTarget = "17"
+    }
+
+    signingConfigs {
+        release {
+            if (keystorePropsFile.exists()) {
+                storeFile file(keystoreProps['storeFile'])
+                storePassword keystoreProps['storePassword']
+                keyAlias keystoreProps['keyAlias']
+                keyPassword keystoreProps['keyPassword']
+            }
+        }
+    }
+
+    defaultConfig {
+        // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
+        applicationId = "bd.moneybag.moneybag"
+        // You can update the following values to match your application needs.
+        // For more information, see: https://flutter.dev/to/review-gradle-config.
+        minSdk = flutter.minSdkVersion
+        targetSdk = flutter.targetSdkVersion
+        // versionCode scheme: major*1000 + minor*10 + patch (keeps the
+        // upgrade path strictly increasing: 2.1.0=2010 → 2.1.1=2011).
+        versionCode = 2205
+        versionName = flutter.versionName
+        // Ship arm64-only native libs (every modern phone): strips the
+        // unused x86/armeabi ML Kit OCR pipelines and cuts ~20MB.
+        ndk {
+            abiFilters 'arm64-v8a'
+        }
+    }
+
+    buildTypes {
+        release {
+            // v2.2.0: real key when keystore.properties exists (see above);
+            // debug fallback only for local --release testing.
+            signingConfig = keystorePropsFile.exists()
+                ? signingConfigs.release
+                : signingConfigs.debug
+            // Optional size hardening — enable once you have verified a
+            // signed release works end-to-end (proguard-rules.pro already
+            // carries the R8/Gson rules FCM needs):
+            // minifyEnabled true
+            // shrinkResources true
+            // proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+        }
+    }
+}
+
+flutter {
+    source = "../.."
+}
+
+dependencies {
+    coreLibraryDesugaring "com.android.tools:desugar_jdk_libs:2.1.2"
+}

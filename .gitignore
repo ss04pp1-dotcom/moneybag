@@ -1,0 +1,28 @@
+# MoneyBag production package — v2.2.0
+
+# ── Secrets & keys ──────────────────────────────────────────────────────────
+moneybag_flutter/android/keystore.properties
+*.jks
+*.keystore
+moneybag_flutter/android/app/google-services.json
+moneybag_flutter/ios/Runner/GoogleService-Info.plist
+
+# ── Flutter / Dart ──────────────────────────────────────────────────────────
+.dart_tool/
+.packages
+.flutter-plugins
+.flutter-plugins-dependencies
+build/
+*.iml
+.idea/
+
+# ── Node (worker + admin) ───────────────────────────────────────────────────
+node_modules/
+.wrangler/
+.dev.vars
+dist/
+!moneybag-cloudflare/admin/dist/
+
+# ── OS junk ─────────────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db

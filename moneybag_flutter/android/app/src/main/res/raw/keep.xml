@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Keep launcher/notification icons alive when the R8 resource shrinker
+     runs on release builds (flutter_local_notifications README guidance —
+     the app uses @mipmap/ic_launcher as its notification icon). -->
+<resources xmlns:tools="http://schemas.android.com/tools"
+    tools:keep="@mipmap/*,@drawable/*" />
