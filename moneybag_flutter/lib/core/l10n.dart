@@ -507,7 +507,7 @@ abstract class MbStrings {
   String get rewardedBody;
   String get rewardedWatch;
   String get rewardedGranted;
-  String get rewardedLeftMins(int mins);
+  String rewardedLeftMins(int mins);
   String get rewardedFailed;
   String get rewardedLoading;
   String get maintenancePopupTitle;
@@ -1475,7 +1475,7 @@ class _BnStrings extends MbStrings {
   @override
   String get rewardedGranted => '১ ঘণ্টার জন্য বিজ্ঞাপন বন্ধ রাখা হলো!';
   @override
-  String get rewardedLeftMins(int mins) => 'বিজ্ঞাপনমুক্ত চলছে — আর $mins মিনিট বাকি';
+  String rewardedLeftMins(int mins) => 'বিজ্ঞাপনমুক্ত চলছে — আর $mins মিনিট বাকি';
   @override
   String get rewardedFailed => 'অ্যাড লোড হয়নি — কিছুক্ষণ পর আবার চেষ্টা করুন';
   @override
@@ -2546,7 +2546,7 @@ class _EnStrings extends MbStrings {
   @override
   String get rewardedGranted => 'Ads are off for the next 1 hour!';
   @override
-  String get rewardedLeftMins(int mins) => 'Ad-free active — $mins m left';
+  String rewardedLeftMins(int mins) => 'Ad-free active — $mins m left';
   @override
   String get rewardedFailed => 'Ad failed to load — try again in a bit';
   @override
