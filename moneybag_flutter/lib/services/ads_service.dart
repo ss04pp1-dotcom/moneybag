@@ -198,8 +198,9 @@ class MbAdsService extends ChangeNotifier {
 
   // ── app open ad ──────────────────────────────────────────────────────────
 
-  void loadAppOpenAd() {
+  Future<void> loadAppOpenAd({bool showOnLoad = false}) async {
     if (!adsEnabled || adFreeActive) return;
+    if (!await ensureSdk()) return;
     AppOpenAd.load(
       adUnitId: appOpenUnitId,
       request: const AdRequest(),
@@ -207,6 +208,7 @@ class MbAdsService extends ChangeNotifier {
         onAdLoaded: (ad) {
           _appOpenLoadTime = DateTime.now();
           _appOpenAd = ad;
+          if (showOnLoad) showAppOpenAdIfAvailable();
         },
         onAdFailedToLoad: (error) {
           debugPrint('AppOpenAd failed to load: $error');

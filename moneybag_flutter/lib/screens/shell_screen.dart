@@ -64,8 +64,7 @@ class _ShellScreenState extends State<ShellScreen> {
 
   void _checkMaintenancePopup() {
     final ads = context.read<MbAdsService>();
-    final cfg = MbRemoteConfigService.instance.config;
-    if (cfg?.maintenance == true && ads.adsEnabled && !ads.adFreeActive) {
+    if (ads.adsEnabled && !ads.adFreeActive) {
       _showMaintenancePopup();
     }
   }

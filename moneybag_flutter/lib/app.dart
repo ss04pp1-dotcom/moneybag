@@ -315,7 +315,7 @@ class _MoneyBagBootstrapState extends State<MoneyBagBootstrap>
     unawaited(_state.tryRestoreGoogleSession());
 
     // Preload AppOpenAd
-    MbAdsService.instance.loadAppOpenAd();
+    MbAdsService.instance.loadAppOpenAd(showOnLoad: true);
   }
 
   Future<void> _retryBoot() async {
