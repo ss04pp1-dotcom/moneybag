@@ -1,0 +1,47 @@
+{
+  "project_info": {
+    "project_number": "702659070321",
+    "project_id": "moneybag-5ba6d",
+    "storage_bucket": "moneybag-5ba6d.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:702659070321:android:1136e4d6f5059436808ed0",
+        "android_client_info": {
+          "package_name": "bd.moneybag.moneybag"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "702659070321-j24efgj6933ite273ac05re6ddsc7gs6.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "bd.moneybag.moneybag",
+            "certificate_hash": "d45b7697abee7fd09f3380c6638a7ed3ba74f089"
+          }
+        },
+        {
+          "client_id": "702659070321-ddl72tj76hic3v9kquv8g9d0fjmra7k7.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCZKKw9nDbrmpGKH7Ixk6LFg3enl5bpWBc"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "702659070321-ddl72tj76hic3v9kquv8g9d0fjmra7k7.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
