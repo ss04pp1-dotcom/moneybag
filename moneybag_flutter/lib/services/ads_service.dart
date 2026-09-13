@@ -36,8 +36,12 @@ class MbAdsService extends ChangeNotifier {
   bool get adsEnabled => MbRemoteConfigService.instance.config?.adsEnabled ?? false;
 
   DateTime? get adFreeUntil => _adFreeUntil;
-  bool get adFreeActive =>
-      _adFreeUntil != null && _adFreeUntil!.isAfter(DateTime.now());
+  bool get adFreeActive {
+    if (_adFreeUntil == null) return false;
+    // Check if there is actually time remaining (minutes > 0)
+    final mins = _adFreeUntil!.difference(DateTime.now()).inMinutes;
+    return mins > 0;
+  }
 
   /// Minutes of ad-free time remaining (0 when none).
   int get adFreeRemainingMins {
