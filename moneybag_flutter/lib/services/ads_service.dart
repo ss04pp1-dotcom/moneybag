@@ -33,19 +33,21 @@ class MbAdsService extends ChangeNotifier {
 
   DateTime? _adFreeUntil;
 
+  AppOpenAd? _appOpenAd;
+  bool _isShowingAd = false;
+  DateTime? _appOpenLoadTime;
+
   bool get adsEnabled => MbRemoteConfigService.instance.config?.adsEnabled ?? false;
 
   DateTime? get adFreeUntil => _adFreeUntil;
   bool get adFreeActive =>
       _adFreeUntil != null && _adFreeUntil!.isAfter(DateTime.now());
 
-  /// Hours of ad-free time remaining (0 when none).
-  /// v2.2.0: plain truncation — the old `inHours + 1` showed “24 h” with
-  /// 23 h 59 m left and “1 h” with 59 minutes left.
-  int get adFreeRemainingHours {
+  /// Minutes of ad-free time remaining (0 when none).
+  int get adFreeRemainingMins {
     if (!adFreeActive) return 0;
     final mins = _adFreeUntil!.difference(DateTime.now()).inMinutes;
-    return mins <= 0 ? 0 : (mins / 60).ceil();
+    return mins <= 0 ? 0 : mins;
   }
 
   /// Whether the dashboard banner should be visible right now.
@@ -66,6 +68,11 @@ class MbAdsService extends ChangeNotifier {
     }
     return testId;
   }
+
+  String get appOpenUnitId => _resolveUnit(
+        '', // We can add it to Remote Config later if needed, fallback to test for now
+        MbConfig.admobTestAppOpenUnitId,
+      );
 
   String get bannerUnitId => _resolveUnit(
         MbRemoteConfigService.instance.config?.bannerUnitId ?? '',
@@ -183,7 +190,7 @@ class MbAdsService extends ChangeNotifier {
   }
 
   Future<void> _grantAdFree() async {
-    _adFreeUntil = DateTime.now().add(const Duration(hours: 24));
+    _adFreeUntil = DateTime.now().add(const Duration(hours: 1));
     final prefs = await SharedPreferences.getInstance();
     await prefs.setInt(
         _adFreeKey, _adFreeUntil!.millisecondsSinceEpoch);
@@ -280,6 +287,65 @@ class MbAdsService extends ChangeNotifier {
       _interstitialLoading = false;
       debugPrint('InterstitialAd.load threw: $e');
     }
+  }
+
+  // ── app open ad ──────────────────────────────────────────────────────────
+
+  void loadAppOpenAd() {
+    if (!adsEnabled || adFreeActive) return;
+    AppOpenAd.load(
+      adUnitId: appOpenUnitId,
+      request: const AdRequest(),
+      adLoadCallback: AppOpenAdLoadCallback(
+        onAdLoaded: (ad) {
+          _appOpenLoadTime = DateTime.now();
+          _appOpenAd = ad;
+        },
+        onAdFailedToLoad: (error) {
+          debugPrint('AppOpenAd failed to load: $error');
+        },
+      ),
+    );
+  }
+
+  bool get _isAdAvailable {
+    return _appOpenAd != null && _appOpenLoadTime != null && 
+        DateTime.now().subtract(const Duration(hours: 4)).isBefore(_appOpenLoadTime!);
+  }
+
+  void showAppOpenAdIfAvailable() {
+    if (!adsEnabled || adFreeActive) {
+      debugPrint('AppOpenAd not shown: Ads disabled or Ad-Free active');
+      return;
+    }
+    if (!_isAdAvailable) {
+      debugPrint('AppOpenAd not available, loading...');
+      loadAppOpenAd();
+      return;
+    }
+    if (_isShowingAd) {
+      debugPrint('AppOpenAd already showing.');
+      return;
+    }
+
+    _appOpenAd!.fullScreenContentCallback = FullScreenContentCallback(
+      onAdShowedFullScreenContent: (ad) {
+        _isShowingAd = true;
+      },
+      onAdFailedToShowFullScreenContent: (ad, error) {
+        _isShowingAd = false;
+        ad.dispose();
+        _appOpenAd = null;
+      },
+      onAdDismissedFullScreenContent: (ad) {
+        _isShowingAd = false;
+        ad.dispose();
+        _appOpenAd = null;
+        loadAppOpenAd();
+      },
+    );
+
+    _appOpenAd!.show();
   }
 
   @override

@@ -6,6 +6,9 @@ import '../state/app_state.dart';
 import '../widgets/animations.dart';
 import '../widgets/common.dart';
 import '../widgets/whats_new.dart';
+import '../services/ads_service.dart';
+import '../services/remote_config_service.dart';
+import '../core/l10n.dart';
 import 'analytics_screen.dart';
 import 'budget_screen.dart';
 import 'dashboard_screen.dart';
@@ -54,7 +57,54 @@ class _ShellScreenState extends State<ShellScreen> {
       if (state.onboarded && state.introDone) {
         showWhatsNewIfNeeded(context, state);
       }
+      
+      _checkMaintenancePopup();
     });
+  }
+
+  void _checkMaintenancePopup() {
+    final ads = context.read<MbAdsService>();
+    final cfg = MbRemoteConfigService.instance.config;
+    if (cfg?.maintenance == true && ads.adsEnabled && !ads.adFreeActive) {
+      _showMaintenancePopup();
+    }
+  }
+
+  void _showMaintenancePopup() {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) {
+        final L = ctx.L;
+        final ads = ctx.read<MbAdsService>();
+        return AlertDialog(
+          title: Text(L.maintenancePopupTitle),
+          content: Text(L.maintenancePopupBody),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.of(ctx).pop();
+                // If they refuse, you can decide what to do. Usually, they can just use the app, 
+                // but if maintenance mode requires ads, we could force it or just close popup.
+              },
+              child: Text(L.cancel), // we can use 'Dismiss' or L.cancel (if exists)
+            ),
+            FilledButton(
+              onPressed: () async {
+                Navigator.of(ctx).pop();
+                final earned = await ads.showRewarded();
+                if (mounted && !earned) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text(L.rewardedFailed)),
+                  );
+                }
+              },
+              child: Text(L.rewardedWatch),
+            ),
+          ],
+        );
+      }
+    );
   }
 
   void _openAdd() {

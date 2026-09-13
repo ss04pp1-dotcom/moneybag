@@ -752,7 +752,7 @@ class _SupportCardState extends State<_SupportCard> {
                     ),
                     subtitle: Text(
                       ads.adFreeActive
-                          ? L.rewardedLeft(ads.adFreeRemainingHours)
+                          ? L.rewardedLeftMins(ads.adFreeRemainingMins)
                           : L.rewardedBody,
                       style: TextStyle(
                         fontFamily: 'NotoSansBengali',

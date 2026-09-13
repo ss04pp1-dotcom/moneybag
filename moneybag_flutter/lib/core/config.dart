@@ -53,6 +53,8 @@ abstract final class MbConfig {
   /// with your real AdMob App ID, then enable ads from the admin panel.
   static const String admobTestAppId =
       'ca-app-pub-3940256099942544~3347511713';
+  static const String admobTestAppOpenUnitId =
+      'ca-app-pub-3940256099942544/9257395921';
   static const String admobTestBannerUnitId =
       'ca-app-pub-3940256099942544/6300978111';
   static const String admobTestInterstitialUnitId =

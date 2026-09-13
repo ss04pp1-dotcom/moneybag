@@ -313,6 +313,9 @@ class _MoneyBagBootstrapState extends State<MoneyBagBootstrap>
 
     // Restore a previous Google session silently (if the user signed in).
     unawaited(_state.tryRestoreGoogleSession());
+
+    // Preload AppOpenAd
+    MbAdsService.instance.loadAppOpenAd();
   }
 
   Future<void> _retryBoot() async {
@@ -326,6 +329,8 @@ class _MoneyBagBootstrapState extends State<MoneyBagBootstrap>
       // Back to foreground: missed-reminder catch-up + fresh remote state.
       unawaited(MbNotifications.instance.onAppResumed(_state));
       unawaited(MbRemoteConfigService.instance.refresh());
+      // Show AppOpenAd
+      MbAdsService.instance.showAppOpenAdIfAvailable();
       // v2.2.1: repaint the home screen widget. "Today's spend" goes stale
       // while the app sits in the background (day rollover), and OEM
       // launchers can drop the widget bind for sideloaded apps — one cheap
