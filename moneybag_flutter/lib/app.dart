@@ -184,7 +184,7 @@ class _IntroSplashState extends State<_IntroSplash>
                     ),
                     child: child,
                   ),
-                  child: const MbAppLogo(size: 78),
+                  child: Image.asset('assets/images/logo.png', width: 78, height: 78),
                 )
                     .animateIn(
                       scale: 0.62 + 0.38 * logoT,
@@ -300,7 +300,7 @@ class _MoneyBagBootstrapState extends State<MoneyBagBootstrap>
 
     // Admin API (Cloudflare Worker): loads cached snapshot instantly,
     // then refreshes in the background — notices/ads appear non-blocking.
-    unawaited(MbRemoteConfigService.instance.init());
+    await MbRemoteConfigService.instance.init();
 
     // v2: real-time FCM push + user/token registration on the Worker.
     unawaited(MbPushService.instance.init());
@@ -309,13 +309,13 @@ class _MoneyBagBootstrapState extends State<MoneyBagBootstrap>
     unawaited(MbAutoSyncService.instance.attach(_state));
 
     // v2: rewarded-ad ad-free state (24h grants).
-    unawaited(MbAdsService.instance.loadAdFreeState());
+    await MbAdsService.instance.loadAdFreeState();
 
     // Restore a previous Google session silently (if the user signed in).
     unawaited(_state.tryRestoreGoogleSession());
 
     // Preload AppOpenAd
-    MbAdsService.instance.loadAppOpenAd(showOnLoad: true);
+    unawaited(MbAdsService.instance.loadAppOpenAd(showOnLoad: true));
   }
 
   Future<void> _retryBoot() async {

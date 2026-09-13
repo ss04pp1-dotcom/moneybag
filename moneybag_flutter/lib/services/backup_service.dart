@@ -337,20 +337,24 @@ List<Map<String, dynamic>> _readList(Map<String, dynamic> map, String key) {
   return const [];
 }
 
-String _s(Map<String, dynamic> m, String k) => (m[k] ?? '') as String;
-String? _nullableS(Map<String, dynamic> m, String k) => m[k] as String?;
-int _i(Map<String, dynamic> m, String k) => (m[k] ?? 0) as int;
-bool _b(Map<String, dynamic> m, String k) => (m[k] ?? false) as bool;
+String _s(Map<String, dynamic> m, String k) => m[k]?.toString() ?? '';
+String? _nullableS(Map<String, dynamic> m, String k) => m[k]?.toString();
+int _i(Map<String, dynamic> m, String k) {
+  final v = m[k];
+  if (v is int) return v;
+  return int.tryParse(v?.toString() ?? '') ?? 0;
+}
+bool _b(Map<String, dynamic> m, String k) => m[k] == true || m[k] == 'true' || m[k] == 1;
 
 /// v2.2.5: booleans whose COLUMN default is true (categories.isActive,
 /// budgets.active) — a missing key in an older/hand-made backup must not
 /// resurrect them as false (blank pickers / invisible budgets).
 bool _bOrTrue(Map<String, dynamic> m, String k) {
   final v = m[k];
-  return v == null ? true : v as bool;
+  return v == null ? true : (v == true || v == 'true' || v == 1);
 }
 DateTime _dt(Map<String, dynamic> m, String k) =>
-    DateTime.tryParse((m[k] ?? '') as String) ??
+    DateTime.tryParse(m[k]?.toString() ?? '') ??
     DateTime.fromMillisecondsSinceEpoch(0);
 DateTime? _nullableDt(Map<String, dynamic> m, String k) =>
-    m[k] == null ? null : DateTime.tryParse(m[k] as String);
+    m[k] == null ? null : DateTime.tryParse(m[k].toString());
