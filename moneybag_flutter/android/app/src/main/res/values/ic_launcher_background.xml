@@ -1,4 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <color name="ic_launcher_background">#0D1F17</color>
+    <!-- Cream disc behind the launcher logo — matches the splash brand bg;
+         the dark-outlined green logo needs a light backdrop to read well. -->
+    <color name="ic_launcher_background">#F0F0E0</color>
 </resources>

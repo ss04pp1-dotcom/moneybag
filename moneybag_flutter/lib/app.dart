@@ -141,7 +141,9 @@ class _IntroSplashState extends State<_IntroSplash>
 
   @override
   Widget build(BuildContext context) {
-    const bg = Color(0xFFF9F9F9);
+    // Cream — matches the splash image background so the image edges blend
+    // in seamlessly behind the cover fit and during the fade to the shell.
+    const bg = Color(0xFFF0F0E0);
 
     return Scaffold(
       backgroundColor: bg,

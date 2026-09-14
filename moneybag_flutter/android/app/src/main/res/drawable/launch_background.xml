@@ -1,11 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- MoneyBag branded launch screen — deep-navy background + centered logo. -->
+<!-- MoneyBag branded launch screen — full-screen splash image that hands
+     over seamlessly to the Flutter intro splash (same image, BoxFit.cover). -->
 <layer-list xmlns:android="http://schemas.android.com/apk/res/android">
     <item android:drawable="@color/launch_bg" />
     <item>
         <bitmap
-            android:gravity="center"
-            android:src="@drawable/launch_logo"
+            android:gravity="fill"
+            android:src="@drawable/launch_splash"
             android:tileMode="disabled" />
     </item>
 </layer-list>
