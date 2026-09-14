@@ -59,6 +59,14 @@ class _ShellScreenState extends State<ShellScreen> with WidgetsBindingObserver {
   bool _entryPopupFired = false;
   DateTime? _pausedAt;
 
+  // v2.2.5 hotfix: MbAdsService is a singleton (MbAdsService.instance) and is
+  // NOT registered in the provider tree — only MbAppState is. The previous
+  // `context.read<MbAdsService>()` calls threw ProviderNotFoundException
+  // inside the timer callback, which release builds swallow silently, so
+  // the popup NEVER appeared. Always go through .instance (as profile_screen
+  // and ad_banner.dart do).
+  int _entryConfigRetries = 0;
+
   static const _pages = <Widget>[
     DashboardScreen(key: ValueKey('dashboard')),
     TransactionsScreen(key: ValueKey('transactions')),
@@ -135,7 +143,19 @@ class _ShellScreenState extends State<ShellScreen> with WidgetsBindingObserver {
   /// still arrives — it never silently disappears.
   void _onEntryPopupDue() {
     if (!mounted) return;
-    if (!context.read<MbAdsService>().adsEnabled) return;
+    final ads = MbAdsService.instance;
+    // First-ever launch: the remote config fetch may still be in flight (no
+    // cached snapshot yet, config == null). Retry a minute later instead of
+    // dropping the popup for the whole session — capped at 3 retries so an
+    // offline device doesn't spin forever (ads need network anyway).
+    if (!ads.adsEnabled &&
+        MbRemoteConfigService.instance.config == null &&
+        _entryConfigRetries < 3) {
+      _entryConfigRetries++;
+      _entryPopupTimer = Timer(_popupRetryDelay, _onEntryPopupDue);
+      return;
+    }
+    if (!ads.adsEnabled) return;
     if (_dialogShowing || !_shellIsVisible()) {
       _entryPopupTimer = Timer(_popupRetryDelay, _onEntryPopupDue);
       return;
@@ -148,7 +168,7 @@ class _ShellScreenState extends State<ShellScreen> with WidgetsBindingObserver {
   /// no cooldown math, no coin flip: 100% predictable). Every later open
   /// goes straight to the 30-minute ad-free offer.
   Future<void> _showDailyPopup() async {
-    final ads = context.read<MbAdsService>();
+    final ads = MbAdsService.instance;
     if (!ads.adsEnabled) return;
     final prefs = await SharedPreferences.getInstance();
     final today = _dayKey(DateTime.now());
@@ -199,7 +219,7 @@ class _ShellScreenState extends State<ShellScreen> with WidgetsBindingObserver {
       barrierDismissible: false,
       builder: (ctx) {
         final L = ctx.L;
-        final ads = ctx.read<MbAdsService>();
+        final ads = MbAdsService.instance;
         return AlertDialog(
           title: Text(L.maintenancePopupTitle),
           content: Text(L.maintenancePopupBody),
@@ -229,7 +249,7 @@ class _ShellScreenState extends State<ShellScreen> with WidgetsBindingObserver {
   /// Quietly skipped while ads are off or an ad-free period is running.
   void _showAdFreeOffer() {
     if (!mounted || _dialogShowing) return;
-    final ads = context.read<MbAdsService>();
+    final ads = MbAdsService.instance;
     if (!ads.adsEnabled || ads.adFreeActive) return;
     if (!_shellIsVisible()) return;
     _dialogShowing = true;
@@ -238,7 +258,7 @@ class _ShellScreenState extends State<ShellScreen> with WidgetsBindingObserver {
       barrierDismissible: false,
       builder: (ctx) {
         final L = ctx.L;
-        final ads = ctx.read<MbAdsService>();
+        final ads = MbAdsService.instance;
         return AlertDialog(
           title: Text(L.rewardedTitle),
           content: Text(L.rewardedBody),
