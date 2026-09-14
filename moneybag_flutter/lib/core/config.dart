@@ -52,13 +52,13 @@ abstract final class MbConfig {
   /// .APPLICATION_ID) and ios/Runner/Info.plist (GADApplicationIdentifier)
   /// with your real AdMob App ID, then enable ads from the admin panel.
   static const String admobTestAppId =
-      'ca-app-pub-3940256099942544~3347511713';
+      'ca-app-pub-8263768090433893~5101218161';
   static const String admobTestAppOpenUnitId =
       'ca-app-pub-3940256099942544/9257395921';
   static const String admobTestBannerUnitId =
-      'ca-app-pub-3940256099942544/6300978111';
+      'ca-app-pub-8263768090433893/5471919105';
   static const String admobTestInterstitialUnitId =
-      'ca-app-pub-3940256099942544/1033173712';
+      'ca-app-pub-8263768090433893/8270694024';
   static const String admobTestRewardedUnitId =
-      'ca-app-pub-3940256099942544/5224354917';
+      'ca-app-pub-8263768090433893/5021714159';
 }
