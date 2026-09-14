@@ -810,6 +810,10 @@ class MbAppState extends ChangeNotifier {
     bengaliDigits = true;
     budgetAlerts = true;
     weeklySummary = true;
+    // v2.2.5 fix: this one field was missed — it kept the pre-reset value
+    // in memory for the rest of the session (prefs are cleared, so the
+    // next boot was already correct).
+    smartNotifications = true;
     dailyReminder = true;
     dailyReminderHour = 20;
     dailyReminderMinute = 0;

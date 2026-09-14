@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../core/format.dart';
 import '../core/palette.dart';
 import '../state/app_state.dart';
+import '../widgets/ad_banner.dart';
 import '../widgets/animations.dart';
 import '../widgets/common.dart';
 import 'transaction_edit_screen.dart';
@@ -145,15 +146,31 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
           ),
           Expanded(
             child: groups.isEmpty
-                ? MbEmptyState(
-                    emoji: '🔍',
-                    title: L.txEmptyFiltered,
-                    body: L.noTransactionsHint,
+                ? ListView(
+                    padding: const EdgeInsets.fromLTRB(16, 4, 16, 120),
+                    children: [
+                      MbEmptyState(
+                        emoji: '🔍',
+                        title: L.txEmptyFiltered,
+                        body: L.noTransactionsHint,
+                      ),
+                      // v2.2.5: home-screen-style bottom banner ad.
+                      const MbAdBanner(),
+                    ],
                   )
                 : ListView.builder(
                     padding: const EdgeInsets.fromLTRB(16, 4, 16, 120),
-                    itemCount: groups.length,
+                    // +1 → the last slot is the bottom banner ad
+                    // (home-screen style; the 120px bottom padding keeps
+                    // it clear of the FAB / nav bar).
+                    itemCount: groups.length + 1,
                     itemBuilder: (context, i) {
+                      if (i == groups.length) {
+                        return const Padding(
+                          padding: EdgeInsets.only(top: 12),
+                          child: MbAdBanner(),
+                        );
+                      }
                       final g = groups[i];
                       return MbFadeSlideIn(
                         index: i,

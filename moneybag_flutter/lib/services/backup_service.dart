@@ -93,7 +93,10 @@ class MbBackupService {
   Future<Map<String, dynamic>> _snapshot() async {
     final cats = await db.allCategories();
     final txs = await db.allTransactions();
-    final budgets = await db.activeBudgets();
+    // v2.2.5 fix: snapshot ALL budgets (active AND deactivated). The old
+    // activeBudgets()-only read silently dropped any deactivated budget
+    // from every backup — restore permanently lost it.
+    final budgets = await db.allBudgets();
     final goals = await db.allGoals();
     final contribs = await db.allContributions();
     return {
@@ -268,6 +271,12 @@ class MbBackupService {
         )
     ];
 
+    // v2.2.5 honesty fix: the payload length overstates what actually
+    // landed — restoreRows uses insertOrIgnore, which silently skips rows
+    // whose ids already exist. Count the tables for real instead:
+    //   • replace → report what the database now holds;
+    //   • merge   → report how many NEW rows actually landed (after−before).
+    final before = replace ? null : await db.countsAll();
     await db.restoreRows(
       cats: catCompanions,
       txs: txCompanions,
@@ -276,14 +285,27 @@ class MbBackupService {
       contribs: contribCompanions,
       replace: replace,
     );
+    final after = await db.countsAll();
 
+    if (replace) {
+      return MbRestoreStats(
+        categories: after.categories,
+        transactions: after.transactions,
+        budgets: after.budgets,
+        goals: after.goals,
+        contributions: after.contributions,
+        replaced: true,
+      );
+    }
+    final b = before!;
+    int delta(int x, int y) => math.max(0, x - y);
     return MbRestoreStats(
-      categories: cats.length,
-      transactions: txs.length,
-      budgets: buds.length,
-      goals: goals.length,
-      contributions: contribs.length,
-      replaced: replace,
+      categories: delta(after.categories, b.categories),
+      transactions: delta(after.transactions, b.transactions),
+      budgets: delta(after.budgets, b.budgets),
+      goals: delta(after.goals, b.goals),
+      contributions: delta(after.contributions, b.contributions),
+      replaced: false,
     );
   }
 

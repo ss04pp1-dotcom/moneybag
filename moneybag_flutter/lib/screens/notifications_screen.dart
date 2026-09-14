@@ -6,6 +6,7 @@ import '../services/notification_service.dart';
 import '../services/push_service.dart';
 import '../services/remote_config_service.dart';
 import '../state/app_state.dart';
+import '../widgets/ad_banner.dart';
 import '../widgets/animations.dart';
 import '../widgets/common.dart';
 
@@ -226,6 +227,10 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
             // ── Notices & push feed ──
             _Section(label: L.notifSectionNotices),
             const MbFadeSlideIn(index: 2, child: _NoticesCard()),
+
+            const SizedBox(height: 16),
+            // v2.2.5: home-screen-style bottom banner ad.
+            const MbAdBanner(),
           ],
         ),
       ),

@@ -1,5 +1,9 @@
+import 'dart:async';
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../core/palette.dart';
 import '../state/app_state.dart';
@@ -26,13 +30,26 @@ class ShellScreen extends StatefulWidget {
   State<ShellScreen> createState() => _ShellScreenState();
 }
 
-class _ShellScreenState extends State<ShellScreen> {
+class _ShellScreenState extends State<ShellScreen> with WidgetsBindingObserver {
   // Index of the active nav SLOT (0..4). The pages list below mirrors the
   // 5-slot layout 1:1 — the center slot (2) is the FAB placeholder and is
   // never selectable, but keeping it here makes slot→page mapping direct
   // and impossible to desynchronize (which previously caused a RangeError
   // blank screen on the Profile tab).
   int _index = 0;
+
+  // ── v2.2.5 ads popup system ──
+  // 1) ENTRY popup: "মাঝে মাঝে" — after entering the app a support popup
+  //    appears occasionally (max once per 24 h + a 50% coin flip so it
+  //    never nags on every single open).
+  // 2) PERIODIC popup: while the app stays open, every 10 minutes a popup
+  //    offers 30 minutes of ad-free usage for one rewarded ad. Skipped
+  //    entirely while an ad-free period is already active.
+  static const _entryPopupCooldownMs = 24 * 60 * 60 * 1000;
+  static const _periodicPopupEvery = Duration(minutes: 10);
+  static const _supportPopupAtKey = 'supportPopupLastAt';
+  Timer? _adPopupTimer;
+  bool _dialogShowing = false;
 
   static const _pages = <Widget>[
     DashboardScreen(key: ValueKey('dashboard')),
@@ -48,6 +65,7 @@ class _ShellScreenState extends State<ShellScreen> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     // v2.1.1: greet existing users with the "What's New" guide exactly once
     // per version — AFTER the shell has rendered so the dialog can never be
     // swallowed by the splash→shell AnimatedSwitcher transition.
@@ -57,19 +75,71 @@ class _ShellScreenState extends State<ShellScreen> {
       if (state.onboarded && state.introDone) {
         showWhatsNewIfNeeded(context, state);
       }
-      
-      _checkMaintenancePopup();
+
+      _maybeShowEntryPopup();
     });
+    _startAdPopupTimer();
   }
 
-  void _checkMaintenancePopup() {
-    final ads = context.read<MbAdsService>();
-    if (ads.adsEnabled && !ads.adFreeActive) {
-      _showMaintenancePopup();
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _adPopupTimer?.cancel();
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    // Only tick while the app is actually in the foreground — a popup that
+    // fires in the background would just sit queued on resume.
+    if (state == AppLifecycleState.resumed) {
+      _startAdPopupTimer();
+    } else {
+      _adPopupTimer?.cancel();
     }
   }
 
-  void _showMaintenancePopup() {
+  void _startAdPopupTimer() {
+    _adPopupTimer?.cancel();
+    _adPopupTimer = Timer.periodic(
+      _periodicPopupEvery,
+      (_) => _maybeShowPeriodicPopup(),
+    );
+  }
+
+  /// Entry support popup — "মাঝে মাঝে": at most once per 24 h and only on
+  /// a ~50% coin flip, so opening the app never guarantees a nag.
+  Future<void> _maybeShowEntryPopup() async {
+    final ads = context.read<MbAdsService>();
+    if (!ads.adsEnabled || ads.adFreeActive) return;
+    final prefs = await SharedPreferences.getInstance();
+    final lastMs = prefs.getInt(_supportPopupAtKey) ?? 0;
+    final nowMs = DateTime.now().millisecondsSinceEpoch;
+    if (nowMs - lastMs < _entryPopupCooldownMs) return;
+    if (!math.Random().nextBool()) return; // try again on a future open
+    await prefs.setInt(_supportPopupAtKey, nowMs);
+    if (!mounted) return;
+    _showSupportPopup();
+  }
+
+  /// Periodic ad-free offer — every 10 minutes while the app is open.
+  /// Never interrupts a pushed route (tx editor, goal detail…): it only
+  /// shows while the shell itself is the visible screen.
+  void _maybeShowPeriodicPopup() {
+    if (!mounted || _dialogShowing) return;
+    final ads = context.read<MbAdsService>();
+    if (!ads.adsEnabled || ads.adFreeActive) return;
+    final route = ModalRoute.of(context);
+    if (route != null && !route.isCurrent) return;
+    _showSupportPopup(periodic: true);
+  }
+
+  /// The shared rewarded-ad dialog. Grant: 30 minutes ad-free (see
+  /// MbAdsService._grantAdFree). Dismissal is always allowed — the popup
+  /// is a request, never a wall.
+  void _showSupportPopup({bool periodic = false}) {
+    if (_dialogShowing) return;
+    _dialogShowing = true;
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -77,16 +147,12 @@ class _ShellScreenState extends State<ShellScreen> {
         final L = ctx.L;
         final ads = ctx.read<MbAdsService>();
         return AlertDialog(
-          title: Text(L.maintenancePopupTitle),
-          content: Text(L.maintenancePopupBody),
+          title: Text(periodic ? L.rewardedTitle : L.maintenancePopupTitle),
+          content: Text(periodic ? L.rewardedBody : L.maintenancePopupBody),
           actions: [
             TextButton(
-              onPressed: () {
-                Navigator.of(ctx).pop();
-                // If they refuse, you can decide what to do. Usually, they can just use the app, 
-                // but if maintenance mode requires ads, we could force it or just close popup.
-              },
-              child: Text(L.cancel), // we can use 'Dismiss' or L.cancel (if exists)
+              onPressed: () => Navigator.of(ctx).pop(),
+              child: Text(L.cancel),
             ),
             FilledButton(
               onPressed: () async {
@@ -102,8 +168,8 @@ class _ShellScreenState extends State<ShellScreen> {
             ),
           ],
         );
-      }
-    );
+      },
+    ).then((_) => _dialogShowing = false);
   }
 
   void _openAdd() {

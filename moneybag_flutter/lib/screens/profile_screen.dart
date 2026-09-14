@@ -11,6 +11,7 @@ import '../services/auto_restore_flow.dart';
 import '../services/remote_config_service.dart';
 import '../services/csv_service.dart';
 import '../state/app_state.dart';
+import '../widgets/ad_banner.dart';
 import '../widgets/animations.dart';
 import '../widgets/avatar.dart';
 import '../widgets/common.dart';
@@ -210,7 +211,7 @@ class ProfileScreen extends StatelessWidget {
           ),
           const SizedBox(height: 20),
 
-          // ── Support (rewarded ads → 24h ad-free) ──
+          // ── Support (rewarded ads → 30-min ad-free) ──
           const MbFadeSlideIn(index: 5, child: _SupportCard()),
           const SizedBox(height: 20),
           _Section(label: L.settingsSectionData),
@@ -360,6 +361,11 @@ class ProfileScreen extends StatelessWidget {
             ),
           ),
           ),
+
+          const SizedBox(height: 16),
+          // v2.2.5: home-screen-style bottom banner ad (the list's 120px
+          // bottom padding keeps it clear of the FAB / nav bar).
+          const MbAdBanner(),
         ],
         ),
       ),
@@ -676,7 +682,7 @@ class _AccountCardState extends State<_AccountCard> {
   }
 }
 
-/// Support card — watch one rewarded ad, stay ad-free for 24 hours.
+/// Support card — watch one rewarded ad, stay ad-free for 30 minutes.
 ///
 /// Shown only while the admin panel has ads enabled; while an ad-free
 /// period is active it shows the remaining time instead.

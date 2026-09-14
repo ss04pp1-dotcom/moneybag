@@ -14,7 +14,7 @@ import 'remote_config_service.dart';
 ///   `ads.enabled` on (lazy init happens on the first ad request).
 /// • Unit ids come from the Admin API at runtime; Google's official TEST
 ///   ids are the fallback — safe and policy-compliant.
-/// • Rewarded: watching a full ad grants 24 hours of ad-free usage
+/// • Rewarded: watching a full ad grants 30 minutes of ad-free usage
 ///   (`adFreeUntil` persisted locally, banners suppressed while active).
 class MbAdsService extends ChangeNotifier {
   MbAdsService._();
@@ -110,7 +110,7 @@ class MbAdsService extends ChangeNotifier {
     notifyListeners();
   }
 
-  // ── rewarded: watch an ad → 24h ad-free ──────────────────────────────────
+  // ── rewarded: watch an ad → 30-min ad-free ──────────────────────────────
 
   /// Loads a rewarded ad if one isn't ready yet.
   Future<bool> _ensureRewardedLoaded() async {
@@ -187,7 +187,9 @@ class MbAdsService extends ChangeNotifier {
   }
 
   Future<void> _grantAdFree() async {
-    _adFreeUntil = DateTime.now().add(const Duration(hours: 1));
+    // v2.2.5: reward duration is 30 minutes (was 1 hour) — matches every
+    // user-facing string in l10n.dart.
+    _adFreeUntil = DateTime.now().add(const Duration(minutes: 30));
     final prefs = await SharedPreferences.getInstance();
     await prefs.setInt(
         _adFreeKey, _adFreeUntil!.millisecondsSinceEpoch);

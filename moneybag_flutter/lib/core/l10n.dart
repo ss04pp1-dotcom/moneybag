@@ -1469,11 +1469,11 @@ class _BnStrings extends MbStrings {
   String get rewardedTitle => 'বিজ্ঞাপনমুক্ত থাকুন';
   @override
   String get rewardedBody =>
-      'একটা রিওয়ার্ড অ্যাড দেখে ১ ঘণ্টার জন্য সব বিজ্ঞাপন বন্ধ রাখুন।';
+      'একটা রিওয়ার্ড অ্যাড দেখে ৩০ মিনিটের জন্য সব বিজ্ঞাপন বন্ধ রাখুন।';
   @override
   String get rewardedWatch => 'রিওয়ার্ড অ্যাড দেখুন';
   @override
-  String get rewardedGranted => '১ ঘণ্টার জন্য বিজ্ঞাপন বন্ধ রাখা হলো!';
+  String get rewardedGranted => '৩০ মিনিটের জন্য বিজ্ঞাপন বন্ধ রাখা হলো!';
   @override
   String rewardedLeftMins(int mins) => 'বিজ্ঞাপনমুক্ত চলছে — আর $mins মিনিট বাকি';
   @override
@@ -1483,7 +1483,7 @@ class _BnStrings extends MbStrings {
   @override
   String get maintenancePopupTitle => 'অ্যাপ মেইনটেন্যান্স সমর্থন করুন';
   @override
-  String get maintenancePopupBody => 'অ্যাপটি মেইনটেইন করার জন্য দয়া করে আমাদের সমর্থন করুন। একটি রিওয়ার্ড অ্যাড দেখলে ১ ঘণ্টার জন্য সব বিজ্ঞাপন বন্ধ থাকবে।';
+  String get maintenancePopupBody => 'অ্যাপটি মেইনটেইন করার জন্য দয়া করে আমাদের সমর্থন করুন। একটি রিওয়ার্ড অ্যাড দেখলে ৩০ মিনিটের জন্য সব বিজ্ঞাপন বন্ধ থাকবে।';
 
   // ── auto Drive sync (v2, bn) ──
   @override
@@ -2540,11 +2540,11 @@ class _EnStrings extends MbStrings {
   String get rewardedTitle => 'Stay ad-free';
   @override
   String get rewardedBody =>
-      'Watch one rewarded ad and enjoy 1 hour completely ad-free.';
+      'Watch one rewarded ad and enjoy 30 minutes completely ad-free.';
   @override
   String get rewardedWatch => 'Watch rewarded ad';
   @override
-  String get rewardedGranted => 'Ads are off for the next 1 hour!';
+  String get rewardedGranted => 'Ads are off for the next 30 minutes!';
   @override
   String rewardedLeftMins(int mins) => 'Ad-free active — $mins m left';
   @override
@@ -2554,7 +2554,7 @@ class _EnStrings extends MbStrings {
   @override
   String get maintenancePopupTitle => 'Support App Maintenance';
   @override
-  String get maintenancePopupBody => 'Please support us to maintain the app. Watch one rewarded ad and enjoy 1 hour completely ad-free.';
+  String get maintenancePopupBody => 'Please support us to maintain the app. Watch one rewarded ad and enjoy 30 minutes completely ad-free.';
 
   // ── auto Drive sync (v2, en) ──
   @override

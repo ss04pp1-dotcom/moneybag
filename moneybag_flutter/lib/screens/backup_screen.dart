@@ -12,6 +12,7 @@ import '../services/auto_sync_service.dart';
 import '../services/backup_service.dart';
 import '../services/drive_service.dart';
 import '../state/app_state.dart';
+import '../widgets/ad_banner.dart';
 import '../widgets/animations.dart';
 import '../widgets/common.dart';
 
@@ -52,12 +53,21 @@ class _BackupScreenState extends State<BackupScreen>
           ],
         ),
       ),
-      body: TabBarView(
-        controller: _tabs,
+      body: Column(
         children: [
-          _CreateTab(state: state, service: service),
-          _RestoreTab(state: state, service: service),
-          _DriveTab(state: state, service: service),
+          Expanded(
+            child: TabBarView(
+              controller: _tabs,
+              children: [
+                _CreateTab(state: state, service: service),
+                _RestoreTab(state: state, service: service),
+                _DriveTab(state: state, service: service),
+              ],
+            ),
+          ),
+          // v2.2.5: home-screen-style bottom banner ad (fixed under all
+          // three tabs — safe here, this pushed route has no FAB).
+          SafeArea(top: false, child: const MbAdBanner()),
         ],
       ),
     );

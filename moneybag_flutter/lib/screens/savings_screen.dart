@@ -7,6 +7,7 @@ import '../core/format.dart';
 import '../core/palette.dart';
 import '../data/database.dart';
 import '../state/app_state.dart';
+import '../widgets/ad_banner.dart';
 import '../widgets/animations.dart';
 import '../widgets/charts.dart';
 import '../widgets/common.dart';
@@ -152,6 +153,10 @@ class _SavingsScreenState extends State<SavingsScreen> {
                   ),
                 ),
             ],
+
+          const SizedBox(height: 16),
+          // v2.2.5: home-screen-style bottom banner ad.
+          const MbAdBanner(),
         ],
       ),
     );
@@ -734,6 +739,10 @@ class _GoalDetailScreen extends StatelessWidget {
                 ],
               ),
             ),
+
+          const SizedBox(height: 16),
+          // v2.2.5: home-screen-style bottom banner ad.
+          const MbAdBanner(),
         ],
       ),
     );

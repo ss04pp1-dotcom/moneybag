@@ -6,6 +6,7 @@ import '../core/format.dart';
 import '../core/insights.dart';
 import '../core/palette.dart';
 import '../state/app_state.dart';
+import '../widgets/ad_banner.dart';
 import '../widgets/animations.dart';
 import '../widgets/charts.dart';
 import '../widgets/common.dart';
@@ -300,6 +301,10 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
                 ),
               ),
           ],
+
+          const SizedBox(height: 16),
+          // v2.2.5: home-screen-style bottom banner ad.
+          const MbAdBanner(),
         ],
       ),
     );

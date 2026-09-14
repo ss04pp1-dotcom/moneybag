@@ -154,6 +154,15 @@ class MbDatabase extends _$MbDatabase {
   Future<List<Budget>> activeBudgets() =>
       (select(budgets)..where((b) => b.active.equals(true))).get();
 
+  /// ALL budgets, active or not — used by backup snapshots.
+  ///
+  /// v2.2.5 bugfix: the snapshot only read [activeBudgets], so a budget the
+  /// user had deactivated (but not deleted) was silently dropped from every
+  /// backup — restoring that backup permanently lost it. Snapshotting all
+  /// rows keeps the deactivation state round-tripping (the JSON carries the
+  /// per-row `active` flag and the restore path honours it).
+  Future<List<Budget>> allBudgets() => select(budgets).get();
+
   Future<void> upsertBudget(BudgetsCompanion entry) =>
       into(budgets).insertOnConflictUpdate(entry);
 
@@ -234,6 +243,26 @@ class MbDatabase extends _$MbDatabase {
       }
     });
   }
+
+  /// Row counts for the five tables — used by the backup restore path to
+  /// report HONEST stats: `insertOrIgnore` silently skips rows whose ids
+  /// already exist, so the payload length overstates what actually landed.
+  Future<MbDbCounts> countsAll() async {
+    Future<int> countOf(TableInfo<Table, dynamic> table) async {
+      final count = countAll();
+      final query = selectOnly(table)..addColumns([count]);
+      final row = await query.getSingle();
+      return row.read(count) ?? 0;
+    }
+
+    return MbDbCounts(
+      categories: await countOf(categories),
+      transactions: await countOf(transactions),
+      budgets: await countOf(budgets),
+      goals: await countOf(goals),
+      contributions: await countOf(contributions),
+    );
+  }
 }
 
 LazyDatabase _openConnection() {
@@ -247,4 +276,21 @@ LazyDatabase _openConnection() {
 /// Convenience: new ids for app-generated rows.
 abstract final class MbIds {
   static String newId() => MbUtils.uuid();
+}
+
+/// Real row counts of the five tables (see [MbDatabase.countsAll]).
+class MbDbCounts {
+  final int categories;
+  final int transactions;
+  final int budgets;
+  final int goals;
+  final int contributions;
+
+  const MbDbCounts({
+    required this.categories,
+    required this.transactions,
+    required this.budgets,
+    required this.goals,
+    required this.contributions,
+  });
 }

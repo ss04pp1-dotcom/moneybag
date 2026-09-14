@@ -8,6 +8,7 @@ import '../core/palette.dart';
 import '../data/database.dart';
 import '../screens/categories_screen.dart';
 import '../state/app_state.dart';
+import '../widgets/ad_banner.dart';
 import '../widgets/animations.dart';
 import '../widgets/common.dart';
 
@@ -168,6 +169,11 @@ class _BudgetScreenState extends State<BudgetScreen> {
                 color: Theme.of(context).colorScheme.onSurfaceVariant,
               ),
             ),
+
+          const SizedBox(height: 16),
+          // v2.2.5: home-screen-style bottom banner ad (the list's 120px
+          // bottom padding keeps it clear of the FAB / nav bar).
+          const MbAdBanner(),
         ],
       ),
     );

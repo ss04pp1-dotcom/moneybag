@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../core/palette.dart';
 import '../data/database.dart';
 import '../state/app_state.dart';
+import '../widgets/ad_banner.dart';
 import '../widgets/animations.dart';
 import '../widgets/common.dart';
 
@@ -49,11 +50,20 @@ class _CategoriesScreenState extends State<CategoriesScreen>
           ],
         ),
       ),
-      body: TabBarView(
-        controller: _tabs,
+      body: Column(
         children: [
-          _list(context, state, 'expense'),
-          _list(context, state, 'income'),
+          Expanded(
+            child: TabBarView(
+              controller: _tabs,
+              children: [
+                _list(context, state, 'expense'),
+                _list(context, state, 'income'),
+              ],
+            ),
+          ),
+          // v2.2.5: home-screen-style bottom banner ad (fixed under both
+          // tabs — safe here, this pushed route has no FAB).
+          SafeArea(top: false, child: const MbAdBanner()),
         ],
       ),
     );

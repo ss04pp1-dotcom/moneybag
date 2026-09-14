@@ -240,7 +240,7 @@ class _MoneyBagBootstrapState extends State<MoneyBagBootstrap>
     // v2: auto Google Drive sync (backup listener + auto-restore).
     unawaited(MbAutoSyncService.instance.attach(_state));
 
-    // v2: rewarded-ad ad-free state (24h grants).
+    // v2: rewarded-ad ad-free state (30-min grants).
     await MbAdsService.instance.loadAdFreeState();
 
     // Restore a previous Google session silently (if the user signed in).

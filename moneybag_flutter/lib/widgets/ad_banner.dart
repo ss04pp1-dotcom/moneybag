@@ -124,7 +124,7 @@ class _MbAdBannerState extends State<MbAdBanner> {
     final scheme = Theme.of(context).colorScheme;
 
     // React to config changes (admin flips ads on/off) and to rewarded
-    // ad-free periods (24h grants).
+    // ad-free periods (30-min grants).
     return ListenableBuilder(
       listenable: Listenable.merge([
         MbRemoteConfigService.instance,
