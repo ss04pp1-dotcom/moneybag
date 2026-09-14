@@ -35,6 +35,16 @@ class MbAdsService extends ChangeNotifier {
 
   bool get adsEnabled => MbRemoteConfigService.instance.config?.adsEnabled ?? false;
 
+  /// v2.2.5: hook fired when the app-open ad FINISHES (the user dismissed
+  /// it, or it failed to show). The shell registers here so the entry
+  /// popup can appear the moment the full-screen ad is gone — "app open ad
+  /// closes → popup" — instead of waiting out the 30 s fallback timer.
+  void Function()? onAppOpenAdFinished;
+
+  /// True while the app-open ad full-screen content is on screen. Dialogs
+  /// must not pop on top of a native ad overlay.
+  bool get isShowingAppOpenAd => _isShowingAd;
+
   DateTime? get adFreeUntil => _adFreeUntil;
   bool get adFreeActive {
     if (_adFreeUntil == null) return false;
@@ -247,12 +257,14 @@ class MbAdsService extends ChangeNotifier {
         _isShowingAd = false;
         ad.dispose();
         _appOpenAd = null;
+        onAppOpenAdFinished?.call();
       },
       onAdDismissedFullScreenContent: (ad) {
         _isShowingAd = false;
         ad.dispose();
         _appOpenAd = null;
         loadAppOpenAd();
+        onAppOpenAdFinished?.call();
       },
     );
 

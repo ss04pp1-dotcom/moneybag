@@ -38,26 +38,34 @@ class _ShellScreenState extends State<ShellScreen> with WidgetsBindingObserver {
   int _index = 0;
 
   // ── v2.2.5 ads popup system (user-tuned) ──
-  // ENTRY: 30 seconds after the app is opened a popup appears:
+  // ENTRY: the popup appears RIGHT AFTER the app-open ad closes (an
+  //   ~800 ms beat so the shell settles) — a 30 s fallback timer covers
+  //   the case where no app-open ad played at all:
   //   • the day's FIRST open  → SUPPORT popup (once per calendar day);
-  //     the ad-free follow-up then comes a few minutes later
+  //     the ad-free offer follows ~2 s after it closes
   //   • any other open        → the ad-free offer directly
   // PERIODIC: while the app stays open, every 10 minutes another ad-free
   //   offer — never while an ad-free period is already active, and never
-  //   while ads are disabled entirely. A popup that would land on a pushed
-  //   route (tx editor, goal detail…) waits and retries a minute later.
+  //   while ads are disabled entirely. A popup that would land on a busy
+  //   moment (dialog up, app-open ad on screen, pushed route) retries a
+  //   minute later — it never silently disappears.
   static const _entryPopupDelay = Duration(seconds: 30);
-  static const _supportFollowUpDelay = Duration(minutes: 3);
+  static const _adDismissPopupDelay = Duration(milliseconds: 800);
+  static const _supportFollowUpDelay = Duration(seconds: 2);
   static const _periodicPopupEvery = Duration(minutes: 10);
   static const _popupRetryDelay = Duration(minutes: 1);
+  static const _popupRetryWhileAdShowing = Duration(seconds: 5);
   static const _reentryThreshold = Duration(minutes: 2);
+  static const _offerReposeAfterDismiss = Duration(seconds: 60);
   static const _supportPopupDayKey = 'supportPopupLastDay';
   Timer? _entryPopupTimer;
   Timer? _afterSupportTimer;
   Timer? _periodicPopupTimer;
+  Timer? _offerRetryTimer;
   bool _dialogShowing = false;
   bool _entryPopupFired = false;
   DateTime? _pausedAt;
+  DateTime? _lastOfferClosedAt;
 
   // v2.2.5 hotfix: MbAdsService is a singleton (MbAdsService.instance) and is
   // NOT registered in the provider tree — only MbAppState is. The previous
@@ -82,6 +90,9 @@ class _ShellScreenState extends State<ShellScreen> with WidgetsBindingObserver {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    // v2.2.5: when the app-open ad finishes, the entry popup shows RIGHT
+    // THEN (a beat later) instead of waiting out the 30 s fallback.
+    MbAdsService.instance.onAppOpenAdFinished = _onAppOpenAdFinished;
     // v2.1.1: greet existing users with the "What's New" guide exactly once
     // per version — AFTER the shell has rendered so the dialog can never be
     // swallowed by the splash→shell AnimatedSwitcher transition.
@@ -100,9 +111,11 @@ class _ShellScreenState extends State<ShellScreen> with WidgetsBindingObserver {
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    MbAdsService.instance.onAppOpenAdFinished = null;
     _entryPopupTimer?.cancel();
     _afterSupportTimer?.cancel();
     _periodicPopupTimer?.cancel();
+    _offerRetryTimer?.cancel();
     super.dispose();
   }
 
@@ -125,24 +138,36 @@ class _ShellScreenState extends State<ShellScreen> with WidgetsBindingObserver {
       _entryPopupTimer?.cancel();
       _afterSupportTimer?.cancel();
       _periodicPopupTimer?.cancel();
+      _offerRetryTimer?.cancel();
     }
   }
 
   // ── popup scheduling ────────────────────────────────────────────────────
 
-  /// Arms the 30-second entry popup (skipped when it already fired during
-  /// this foreground session).
+  /// The app-open ad just finished (dismissed / failed to show): the
+  /// entry popup fires right now — ~800 ms after the full-screen ad is
+  /// gone — instead of waiting out the 30 s fallback timer.
+  void _onAppOpenAdFinished() {
+    if (!mounted || _entryPopupFired) return;
+    _entryPopupTimer?.cancel();
+    _entryPopupTimer = Timer(_adDismissPopupDelay, _onEntryPopupDue);
+  }
+
+  /// Arms the 30-second entry popup fallback (skipped when it already
+  /// fired during this foreground session; replaced whenever the app-open
+  /// ad finishes earlier via [_onAppOpenAdFinished]).
   void _scheduleEntryPopup() {
     if (_entryPopupFired) return;
     _entryPopupTimer?.cancel();
     _entryPopupTimer = Timer(_entryPopupDelay, _onEntryPopupDue);
   }
 
-  /// Fires 30 s after entry. If the moment is busy (a dialog is up or the
-  /// user is inside a pushed route) it retries a minute later so the popup
-  /// still arrives — it never silently disappears.
+  /// Fires 30 s after entry (or immediately after the app-open ad
+  /// finishes). If the moment is busy (a dialog is up or the user is
+  /// inside a pushed route) it retries a minute later so the popup still
+  /// arrives — it never silently disappears.
   void _onEntryPopupDue() {
-    if (!mounted) return;
+    if (!mounted || _entryPopupFired) return;
     final ads = MbAdsService.instance;
     // First-ever launch: the remote config fetch may still be in flight (no
     // cached snapshot yet, config == null). Retry a minute later instead of
@@ -156,6 +181,12 @@ class _ShellScreenState extends State<ShellScreen> with WidgetsBindingObserver {
       return;
     }
     if (!ads.adsEnabled) return;
+    // The app-open ad still covers the screen — re-check shortly; the
+    // dismiss hook will usually beat this timer anyway.
+    if (ads.isShowingAppOpenAd) {
+      _entryPopupTimer = Timer(_popupRetryWhileAdShowing, _onEntryPopupDue);
+      return;
+    }
     if (_dialogShowing || !_shellIsVisible()) {
       _entryPopupTimer = Timer(_popupRetryDelay, _onEntryPopupDue);
       return;
@@ -179,8 +210,8 @@ class _ShellScreenState extends State<ShellScreen> with WidgetsBindingObserver {
     await prefs.setString(_supportPopupDayKey, today);
     if (!mounted) return;
     _showSupportPopup(onClosed: () {
-      // "কিছুক্ষণ পর" — the ad-free offer follows a few minutes after the
-      // support popup closes, never stacked on top of it.
+      // v2.2.5 (user-tuned): the ad-free offer follows ~2 s after the
+      // support popup closes — right away, never stacked on top of it.
       _afterSupportTimer?.cancel();
       _afterSupportTimer = Timer(_supportFollowUpDelay, () {
         if (mounted) _showAdFreeOffer();
@@ -247,11 +278,24 @@ class _ShellScreenState extends State<ShellScreen> with WidgetsBindingObserver {
 
   /// The ad-free offer — one rewarded ad buys 30 minutes without ads.
   /// Quietly skipped while ads are off or an ad-free period is running.
+  /// A busy moment (dialog up, app-open ad on screen, pushed route)
+  /// retries a minute later so the offer never silently disappears; a
+  /// just-dismissed offer gets a 60 s breather first.
   void _showAdFreeOffer() {
-    if (!mounted || _dialogShowing) return;
+    if (!mounted) return;
     final ads = MbAdsService.instance;
     if (!ads.adsEnabled || ads.adFreeActive) return;
-    if (!_shellIsVisible()) return;
+    if (_lastOfferClosedAt != null &&
+        DateTime.now().difference(_lastOfferClosedAt!) <
+            _offerReposeAfterDismiss) {
+      return;
+    }
+    if (_dialogShowing || ads.isShowingAppOpenAd || !_shellIsVisible()) {
+      _offerRetryTimer?.cancel();
+      _offerRetryTimer = Timer(_popupRetryDelay, _showAdFreeOffer);
+      return;
+    }
+    _offerRetryTimer?.cancel();
     _dialogShowing = true;
     showDialog(
       context: context,
@@ -278,7 +322,10 @@ class _ShellScreenState extends State<ShellScreen> with WidgetsBindingObserver {
           ],
         );
       },
-    ).then((_) => _dialogShowing = false);
+    ).then((_) {
+      _dialogShowing = false;
+      _lastOfferClosedAt = DateTime.now();
+    });
   }
 
   void _onRewardResult(bool earned) {
