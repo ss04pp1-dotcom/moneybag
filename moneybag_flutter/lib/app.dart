@@ -46,6 +46,10 @@ class MoneyBagApp extends StatelessWidget {
               return MaterialApp(
                 title: 'মানিব্যাগ — MoneyBag',
                 debugShowCheckedModeBanner: false,
+                // v2.2.5: lets ShellScreen (RouteAware) know when the user
+                // pops back onto the shell route, so a popup that came due
+                // while they were in a pushed screen fires immediately.
+                navigatorObservers: [mbShellRouteObserver],
                 themeMode: state.themeMode,
                 theme: lightTheme,
                 darkTheme: darkTheme,

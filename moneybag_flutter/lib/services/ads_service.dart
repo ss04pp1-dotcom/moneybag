@@ -44,8 +44,17 @@ class MbAdsService extends ChangeNotifier {
   /// v2.2.5: hook fired when the app-open ad FINISHES (the user dismissed
   /// it, or it failed to show). The shell registers here so the entry
   /// popup can appear the moment the full-screen ad is gone — "app open ad
-  /// closes → popup" — instead of waiting out the 30 s fallback timer.
+  /// closes → popup" — instead of waiting out the fallback timer.
   void Function()? onAppOpenAdFinished;
+
+  /// v2.2.5 hotfix: WHEN the last app-open ad finished. The hook above
+  /// fires only when a ShellScreen is alive to receive it — but on a cold
+  /// start the ad often finishes while the shell is NOT mounted yet
+  /// (biometric lock gate still up, splash still playing, DB boot slow).
+  /// A late-mounting shell reads this timestamp and, when the ad closed
+  /// just moments ago, plays the same ~800 ms entry-popup beat as the
+  /// hook would have — this was the "ad dekhalam, popup aslo na" bug.
+  DateTime? appOpenAdFinishedAt;
 
   /// True while the app-open ad full-screen content is on screen. Dialogs
   /// must not pop on top of a native ad overlay.
@@ -353,12 +362,14 @@ class MbAdsService extends ChangeNotifier {
         _isShowingAd = false;
         ad.dispose();
         _appOpenAd = null;
+        appOpenAdFinishedAt = DateTime.now();
         onAppOpenAdFinished?.call();
       },
       onAdDismissedFullScreenContent: (ad) {
         _isShowingAd = false;
         ad.dispose();
         _appOpenAd = null;
+        appOpenAdFinishedAt = DateTime.now();
         loadAppOpenAd();
         onAppOpenAdFinished?.call();
       },
