@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -38,18 +37,27 @@ class _ShellScreenState extends State<ShellScreen> with WidgetsBindingObserver {
   // blank screen on the Profile tab).
   int _index = 0;
 
-  // ── v2.2.5 ads popup system ──
-  // 1) ENTRY popup: "মাঝে মাঝে" — after entering the app a support popup
-  //    appears occasionally (max once per 24 h + a 50% coin flip so it
-  //    never nags on every single open).
-  // 2) PERIODIC popup: while the app stays open, every 10 minutes a popup
-  //    offers 30 minutes of ad-free usage for one rewarded ad. Skipped
-  //    entirely while an ad-free period is already active.
-  static const _entryPopupCooldownMs = 24 * 60 * 60 * 1000;
+  // ── v2.2.5 ads popup system (user-tuned) ──
+  // ENTRY: 30 seconds after the app is opened a popup appears:
+  //   • the day's FIRST open  → SUPPORT popup (once per calendar day);
+  //     the ad-free follow-up then comes a few minutes later
+  //   • any other open        → the ad-free offer directly
+  // PERIODIC: while the app stays open, every 10 minutes another ad-free
+  //   offer — never while an ad-free period is already active, and never
+  //   while ads are disabled entirely. A popup that would land on a pushed
+  //   route (tx editor, goal detail…) waits and retries a minute later.
+  static const _entryPopupDelay = Duration(seconds: 30);
+  static const _supportFollowUpDelay = Duration(minutes: 3);
   static const _periodicPopupEvery = Duration(minutes: 10);
-  static const _supportPopupAtKey = 'supportPopupLastAt';
-  Timer? _adPopupTimer;
+  static const _popupRetryDelay = Duration(minutes: 1);
+  static const _reentryThreshold = Duration(minutes: 2);
+  static const _supportPopupDayKey = 'supportPopupLastDay';
+  Timer? _entryPopupTimer;
+  Timer? _afterSupportTimer;
+  Timer? _periodicPopupTimer;
   bool _dialogShowing = false;
+  bool _entryPopupFired = false;
+  DateTime? _pausedAt;
 
   static const _pages = <Widget>[
     DashboardScreen(key: ValueKey('dashboard')),
@@ -76,68 +84,114 @@ class _ShellScreenState extends State<ShellScreen> with WidgetsBindingObserver {
         showWhatsNewIfNeeded(context, state);
       }
 
-      _maybeShowEntryPopup();
+      _scheduleEntryPopup();
     });
-    _startAdPopupTimer();
+    _startPeriodicPopupTimer();
   }
 
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
-    _adPopupTimer?.cancel();
+    _entryPopupTimer?.cancel();
+    _afterSupportTimer?.cancel();
+    _periodicPopupTimer?.cancel();
     super.dispose();
   }
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    // Only tick while the app is actually in the foreground — a popup that
-    // fires in the background would just sit queued on resume.
     if (state == AppLifecycleState.resumed) {
-      _startAdPopupTimer();
+      // A real re-entry (away longer than 2 minutes) re-arms the entry
+      // popup; a quick app-switch never nags twice in a row.
+      final away = _pausedAt == null
+          ? Duration.zero
+          : DateTime.now().difference(_pausedAt!);
+      if (away > _reentryThreshold) _entryPopupFired = false;
+      _scheduleEntryPopup();
+      _startPeriodicPopupTimer();
     } else {
-      _adPopupTimer?.cancel();
+      if (state == AppLifecycleState.paused ||
+          state == AppLifecycleState.hidden) {
+        _pausedAt = DateTime.now();
+      }
+      _entryPopupTimer?.cancel();
+      _afterSupportTimer?.cancel();
+      _periodicPopupTimer?.cancel();
     }
   }
 
-  void _startAdPopupTimer() {
-    _adPopupTimer?.cancel();
-    _adPopupTimer = Timer.periodic(
+  // ── popup scheduling ────────────────────────────────────────────────────
+
+  /// Arms the 30-second entry popup (skipped when it already fired during
+  /// this foreground session).
+  void _scheduleEntryPopup() {
+    if (_entryPopupFired) return;
+    _entryPopupTimer?.cancel();
+    _entryPopupTimer = Timer(_entryPopupDelay, _onEntryPopupDue);
+  }
+
+  /// Fires 30 s after entry. If the moment is busy (a dialog is up or the
+  /// user is inside a pushed route) it retries a minute later so the popup
+  /// still arrives — it never silently disappears.
+  void _onEntryPopupDue() {
+    if (!mounted) return;
+    if (!context.read<MbAdsService>().adsEnabled) return;
+    if (_dialogShowing || !_shellIsVisible()) {
+      _entryPopupTimer = Timer(_popupRetryDelay, _onEntryPopupDue);
+      return;
+    }
+    _entryPopupFired = true;
+    _showDailyPopup();
+  }
+
+  /// The day's first open gets the SUPPORT popup (once per calendar day —
+  /// no cooldown math, no coin flip: 100% predictable). Every later open
+  /// goes straight to the 30-minute ad-free offer.
+  Future<void> _showDailyPopup() async {
+    final ads = context.read<MbAdsService>();
+    if (!ads.adsEnabled) return;
+    final prefs = await SharedPreferences.getInstance();
+    final today = _dayKey(DateTime.now());
+    if (prefs.getString(_supportPopupDayKey) == today) {
+      _showAdFreeOffer();
+      return;
+    }
+    await prefs.setString(_supportPopupDayKey, today);
+    if (!mounted) return;
+    _showSupportPopup(onClosed: () {
+      // "কিছুক্ষণ পর" — the ad-free offer follows a few minutes after the
+      // support popup closes, never stacked on top of it.
+      _afterSupportTimer?.cancel();
+      _afterSupportTimer = Timer(_supportFollowUpDelay, () {
+        if (mounted) _showAdFreeOffer();
+      });
+    });
+  }
+
+  void _startPeriodicPopupTimer() {
+    _periodicPopupTimer?.cancel();
+    _periodicPopupTimer = Timer.periodic(
       _periodicPopupEvery,
-      (_) => _maybeShowPeriodicPopup(),
+      (_) => _showAdFreeOffer(),
     );
   }
 
-  /// Entry support popup — "মাঝে মাঝে": at most once per 24 h and only on
-  /// a ~50% coin flip, so opening the app never guarantees a nag.
-  Future<void> _maybeShowEntryPopup() async {
-    final ads = context.read<MbAdsService>();
-    if (!ads.adsEnabled || ads.adFreeActive) return;
-    final prefs = await SharedPreferences.getInstance();
-    final lastMs = prefs.getInt(_supportPopupAtKey) ?? 0;
-    final nowMs = DateTime.now().millisecondsSinceEpoch;
-    if (nowMs - lastMs < _entryPopupCooldownMs) return;
-    if (!math.Random().nextBool()) return; // try again on a future open
-    await prefs.setInt(_supportPopupAtKey, nowMs);
-    if (!mounted) return;
-    _showSupportPopup();
-  }
-
-  /// Periodic ad-free offer — every 10 minutes while the app is open.
-  /// Never interrupts a pushed route (tx editor, goal detail…): it only
-  /// shows while the shell itself is the visible screen.
-  void _maybeShowPeriodicPopup() {
-    if (!mounted || _dialogShowing) return;
-    final ads = context.read<MbAdsService>();
-    if (!ads.adsEnabled || ads.adFreeActive) return;
+  /// True while the shell itself is the visible screen — popups must never
+  /// interrupt a pushed route (tx editor, goal detail, lock screen…).
+  bool _shellIsVisible() {
     final route = ModalRoute.of(context);
-    if (route != null && !route.isCurrent) return;
-    _showSupportPopup(periodic: true);
+    return route == null || route.isCurrent;
   }
 
-  /// The shared rewarded-ad dialog. Grant: 30 minutes ad-free (see
-  /// MbAdsService._grantAdFree). Dismissal is always allowed — the popup
-  /// is a request, never a wall.
-  void _showSupportPopup({bool periodic = false}) {
+  String _dayKey(DateTime d) =>
+      '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
+
+  // ── the two dialogs ─────────────────────────────────────────────────────
+
+  /// The daily SUPPORT dialog — "support the app by watching one rewarded
+  /// ad" (grant: 30 minutes ad-free, see MbAdsService._grantAdFree).
+  /// Dismissal is always allowed — the popup is a request, never a wall.
+  void _showSupportPopup({VoidCallback? onClosed}) {
     if (_dialogShowing) return;
     _dialogShowing = true;
     showDialog(
@@ -147,8 +201,8 @@ class _ShellScreenState extends State<ShellScreen> with WidgetsBindingObserver {
         final L = ctx.L;
         final ads = ctx.read<MbAdsService>();
         return AlertDialog(
-          title: Text(periodic ? L.rewardedTitle : L.maintenancePopupTitle),
-          content: Text(periodic ? L.rewardedBody : L.maintenancePopupBody),
+          title: Text(L.maintenancePopupTitle),
+          content: Text(L.maintenancePopupBody),
           actions: [
             TextButton(
               onPressed: () => Navigator.of(ctx).pop(),
@@ -158,11 +212,46 @@ class _ShellScreenState extends State<ShellScreen> with WidgetsBindingObserver {
               onPressed: () async {
                 Navigator.of(ctx).pop();
                 final earned = await ads.showRewarded();
-                if (mounted && !earned) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text(L.rewardedFailed)),
-                  );
-                }
+                _onRewardResult(earned);
+              },
+              child: Text(L.rewardedWatch),
+            ),
+          ],
+        );
+      },
+    ).then((_) {
+      _dialogShowing = false;
+      onClosed?.call();
+    });
+  }
+
+  /// The ad-free offer — one rewarded ad buys 30 minutes without ads.
+  /// Quietly skipped while ads are off or an ad-free period is running.
+  void _showAdFreeOffer() {
+    if (!mounted || _dialogShowing) return;
+    final ads = context.read<MbAdsService>();
+    if (!ads.adsEnabled || ads.adFreeActive) return;
+    if (!_shellIsVisible()) return;
+    _dialogShowing = true;
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) {
+        final L = ctx.L;
+        final ads = ctx.read<MbAdsService>();
+        return AlertDialog(
+          title: Text(L.rewardedTitle),
+          content: Text(L.rewardedBody),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(),
+              child: Text(L.cancel),
+            ),
+            FilledButton(
+              onPressed: () async {
+                Navigator.of(ctx).pop();
+                final earned = await ads.showRewarded();
+                _onRewardResult(earned);
               },
               child: Text(L.rewardedWatch),
             ),
@@ -170,6 +259,14 @@ class _ShellScreenState extends State<ShellScreen> with WidgetsBindingObserver {
         );
       },
     ).then((_) => _dialogShowing = false);
+  }
+
+  void _onRewardResult(bool earned) {
+    if (!mounted) return;
+    final L = context.L;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(earned ? L.rewardedGranted : L.rewardedFailed)),
+    );
   }
 
   void _openAdd() {

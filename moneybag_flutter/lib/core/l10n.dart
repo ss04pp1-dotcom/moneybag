@@ -475,25 +475,23 @@ abstract class MbStrings {
   // ── notification center (v2) ──
   String get notifCenterTitle;
   String get notifSectionReminders;
-  String get notifSectionStatus;
   String get notifSectionNotices;
   String get notifCenterEmpty;
-  String get notifDailyScheduledFail;
-  String notifStatusAllOk(int n);
-  String get notifLastError;
-  String get notifPushLabel;
-  String get notifPushOn;
-  String get notifResync;
 
   // v2.2.3 — smart notifications + device health
   String get notifSmartToggle;
   String get notifSmartHelp;
-  String get notifTestBtn;
-  String get notifTestHelp;
-  String get notifTestSent;
   String notifSmartYesterday(String spent);
   String notifSmartMonth(String spent);
   String notifSmartLeft(String left);
+  String notifSmartToday(String spent);
+  String notifSmartPace(String perDay, int daysLeft);
+  String notifSmartOver(String amount);
+  String notifSmartStreak(int days);
+  String notifSmartGoal(String name, String pct);
+  String notifWeeklyVs(int pct, bool up);
+  String notifWeeklySaved(String amount);
+
   String get notifPermWarning;
   String get notifPermHelp;
   String get notifPermAction;
@@ -1403,50 +1401,60 @@ class _BnStrings extends MbStrings {
   @override
   String get notifSectionReminders => 'রিমাইন্ডার';
   @override
-  String get notifSectionStatus => 'অবস্থা';
-  @override
   String get notifSectionNotices => 'নোটিশ ও পুশ';
   @override
   String get notifCenterEmpty => 'এখন কোনো নোটি অ্যাক্টিভ নেই';
-  @override
-  String get notifDailyScheduledFail => 'শিডিউল হয়নি — সময়টা আবার সেট করুন';
-  @override
-  String notifStatusAllOk(int n) {
-    const d = ['০', '১', '২', '৩', '৪', '৫', '৬', '৭', '৮', '৯'];
-    final digits = n
-        .toString()
-        .split('')
-        .map((c) => d[int.tryParse(c) ?? 0])
-        .join();
-    return 'সব ঠিক আছে · $digitsটি রিমাইন্ডার সক্রিয়';
-  }
-  @override
-  String get notifLastError => 'কারণ';
-  @override
-  String get notifPushLabel => 'রিয়েল-টাইম পুশ';
-  @override
-  String get notifPushOn => 'চালু';
-  @override
-  String get notifResync => 'আবার সিঙ্ক করুন';
 
   // v2.2.3 — smart notifications + device health (bn)
   @override
   String get notifSmartToggle => 'স্মার্ট নোটিফিকেশন';
   @override
   String get notifSmartHelp =>
-      'রিমাইন্ডারে আপনার আসল খরচের হিসাব দেখানো হয় (গতকাল, এ মাসে, বাজেট)';
-  @override
-  String get notifTestBtn => 'টেস্ট নোটিফিকেশন পাঠান';
-  @override
-  String get notifTestHelp => 'নোটিফিকেশন এখনই এসেছে কিনা যাচাই করুন';
-  @override
-  String get notifTestSent => 'টেস্ট নোটিফিকেশন পাঠানো হয়েছে';
+      'রিমাইন্ডারে আসল হিসাব — বাজেটের গতি, আজকের খরচ, স্ট্রিক ও লক্ষ্যের অগ্রগতি';
   @override
   String notifSmartYesterday(String spent) => 'গতকাল $spent';
   @override
   String notifSmartMonth(String spent) => 'এ মাসে $spent';
   @override
   String notifSmartLeft(String left) => 'বাজেটে বাকি $left';
+  @override
+  String notifSmartToday(String spent) => 'আজ এখন পর্যন্ত $spent';
+  @override
+  String notifSmartPace(String perDay, int daysLeft) {
+    const d = ['০', '১', '২', '৩', '৪', '৫', '৬', '৭', '৮', '৯'];
+    final days = daysLeft
+        .toString()
+        .split('')
+        .map((c) => d[int.tryParse(c) ?? 0])
+        .join();
+    return 'মাসের বাকি $days দিন — দিনে গড়ে $perDay খরচ করা যাবে';
+  }
+  @override
+  String notifSmartOver(String amount) => 'বাজেট $amount অতিক্রম হয়েছে';
+  @override
+  String notifSmartStreak(int days) {
+    const d = ['০', '১', '২', '৩', '৪', '৫', '৬', '৭', '৮', '৯'];
+    final n = days
+        .toString()
+        .split('')
+        .map((c) => d[int.tryParse(c) ?? 0])
+        .join();
+    return 'টানা $n দিন হিসাব রাখছেন';
+  }
+  @override
+  String notifSmartGoal(String name, String pct) => '$name — লক্ষ্যের $pct';
+  @override
+  String notifWeeklyVs(int pct, bool up) {
+    const d = ['০', '১', '২', '৩', '৪', '৫', '৬', '৭', '৮', '৯'];
+    final n = pct
+        .toString()
+        .split('')
+        .map((c) => d[int.tryParse(c) ?? 0])
+        .join();
+    return up ? 'গত সপ্তাহের চেয়ে $n% বেশি' : 'গত সপ্তাহের চেয়ে $n% কম';
+  }
+  @override
+  String notifWeeklySaved(String amount) => 'এ সপ্তাহে জমা $amount';
   @override
   String get notifPermWarning => 'নোটিফিকেশন বন্ধ আছে';
   @override
@@ -2481,43 +2489,39 @@ class _EnStrings extends MbStrings {
   @override
   String get notifSectionReminders => 'Reminders';
   @override
-  String get notifSectionStatus => 'Status';
-  @override
   String get notifSectionNotices => 'Notices & push';
   @override
   String get notifCenterEmpty => 'No active notifications right now';
-  @override
-  String get notifDailyScheduledFail => 'Not scheduled — set the time again';
-  @override
-  String notifStatusAllOk(int n) =>
-      (n == 1 ? 'All good · 1 active reminder' : 'All good · $n active reminders');
-  @override
-  String get notifLastError => 'Reason';
-  @override
-  String get notifPushLabel => 'Real-time push';
-  @override
-  String get notifPushOn => 'On';
-  @override
-  String get notifResync => 'Re-sync now';
 
   // v2.2.3 — smart notifications + device health (en)
   @override
   String get notifSmartToggle => 'Smart notifications';
   @override
   String get notifSmartHelp =>
-      'Reminders carry your real numbers (yesterday, this month, budget)';
-  @override
-  String get notifTestBtn => 'Send a test notification';
-  @override
-  String get notifTestHelp => 'Check instantly whether notifications arrive';
-  @override
-  String get notifTestSent => 'Test notification sent';
+      'Real numbers in every reminder — budget pacing, today, streak & goals';
   @override
   String notifSmartYesterday(String spent) => 'Yesterday $spent';
   @override
   String notifSmartMonth(String spent) => 'This month $spent';
   @override
   String notifSmartLeft(String left) => 'Budget left $left';
+  @override
+  String notifSmartToday(String spent) => 'Today so far $spent';
+  @override
+  String notifSmartPace(String perDay, int daysLeft) =>
+      '$daysLeft days left this month — about $perDay a day fits';
+  @override
+  String notifSmartOver(String amount) => 'Budget exceeded by $amount';
+  @override
+  String notifSmartStreak(int days) => '$days-day logging streak';
+  @override
+  String notifSmartGoal(String name, String pct) => '$name — $pct of goal';
+  @override
+  String notifWeeklyVs(int pct, bool up) => up
+      ? '$pct% more than last week'
+      : '$pct% less than last week';
+  @override
+  String notifWeeklySaved(String amount) => 'Saved $amount this week';
   @override
   String get notifPermWarning => 'Notifications are turned off';
   @override

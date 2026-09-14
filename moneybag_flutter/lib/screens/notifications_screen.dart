@@ -10,12 +10,7 @@ import '../widgets/ad_banner.dart';
 import '../widgets/animations.dart';
 import '../widgets/common.dart';
 
-/// Notification center — reminders, a quiet status card and the notice feed.
-///
-/// The status card stays calm by design: one green line when reminders are
-/// live, one short amber line (plus a one-line reason) if a reminder failed
-/// to schedule. Full exceptions, scheduling modes and plugin internals go
-/// to the debug console — never on screen.
+/// Notification center — reminders, device health and the notice feed.
 class NotificationsScreen extends StatefulWidget {
   const NotificationsScreen({super.key});
 
@@ -24,16 +19,12 @@ class NotificationsScreen extends StatefulWidget {
 }
 
 class _NotificationsScreenState extends State<NotificationsScreen> {
-  MbNotifScheduleStatus? _status;
-  int _livePending = -1;
-  bool _busy = false;
   bool _permGranted = true;
   bool _batteryIgnored = true;
 
   @override
   void initState() {
     super.initState();
-    _reloadStatus();
     _reloadDeviceState();
   }
 
@@ -47,19 +38,8 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     });
   }
 
-  Future<void> _reloadStatus() async {
-    final status = await MbNotifications.instance.loadStatus();
-    final pending = await MbNotifications.instance.pendingAlarmCount();
-    if (!mounted) return;
-    setState(() {
-      _status = status;
-      _livePending = pending;
-    });
-  }
-
   Future<void> _afterChange(MbAppState state) async {
     await MbNotifications.instance.applySchedule(state);
-    await _reloadStatus();
   }
 
   Future<void> _toggleDaily(MbAppState state, bool v) async {
@@ -166,24 +146,6 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                       await _afterChange(state);
                     },
                   ),
-                  Divider(color: scheme.outlineVariant, height: 1),
-                  // ── v2.2.3: one-tap test — proves channel + permission;
-                  // anything that still misses is an OEM/battery problem. ──
-                  ListTile(
-                    leading: const Icon(Icons.science_rounded),
-                    title: Text(L.notifTestBtn),
-                    subtitle: Text(L.notifTestHelp),
-                    trailing: const Icon(Icons.send_rounded, size: 19),
-                    onTap: () async {
-                      await MbNotifications.instance.sendTest(state);
-                      if (context.mounted) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(content: Text(L.notifTestSent)),
-                        );
-                      }
-                      await _reloadDeviceState();
-                    },
-                  ),
                 ],
               ),
             ),
@@ -206,23 +168,6 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
               },
             ),
             const SizedBox(height: 20),
-
-            // ── Status (hides itself when there is nothing to report) ──
-            _StatusSection(
-              status: _status,
-              livePending: _livePending,
-              busy: _busy,
-              onResync: () async {
-                if (_busy) return;
-                setState(() => _busy = true);
-                try {
-                  await MbPushService.instance.resync();
-                  await _reloadStatus();
-                } finally {
-                  if (mounted) setState(() => _busy = false);
-                }
-              },
-            ),
 
             // ── Notices & push feed ──
             _Section(label: L.notifSectionNotices),
@@ -329,154 +274,6 @@ class _DeviceHealthCard extends StatelessWidget {
                 child: Text(L.notifBatteryAction),
               ),
             ),
-        ],
-      ),
-    );
-  }
-}
-
-/// Quiet health summary — one green line when reminders are live in the
-/// OS, one short amber line per failed reminder (with the one-line reason
-/// beneath it). Hides itself entirely when there is nothing worth the
-/// user's attention, and never renders technical internals.
-class _StatusSection extends StatelessWidget {
-  final MbNotifScheduleStatus? status;
-  final int livePending;
-  final bool busy;
-  final Future<void> Function() onResync;
-
-  const _StatusSection({
-    required this.status,
-    required this.livePending,
-    required this.busy,
-    required this.onResync,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final state = context.watch<MbAppState>();
-
-    // Push availability can flip after Firebase initializes, so the whole
-    // section listens to the push service and re-evaluates itself.
-    return ListenableBuilder(
-      listenable: MbPushService.instance,
-      builder: (context, _) => _build(context, state),
-    );
-  }
-
-  Widget _build(BuildContext context, MbAppState state) {
-    final L = context.L;
-    final scheme = Theme.of(context).colorScheme;
-    final push = MbPushService.instance;
-
-    // A failure is only claimed when real scheduling data exists — a
-    // missing status (fresh install, permission not asked yet) stays
-    // quiet instead of showing a scary warning.
-    final dailyFail =
-        state.dailyReminder && status != null && !status!.dailyScheduled;
-    final weeklyFail =
-        state.weeklySummary && status != null && !status!.weeklyScheduled;
-    final anyFail = dailyFail || weeklyFail;
-    final pending = livePending < 0 ? 0 : livePending;
-    final showAllOk = !anyFail && pending > 0;
-    final err = status?.lastError;
-    final showReason = anyFail && err != null && err.isNotEmpty;
-
-    // Push is only mentioned when it actually works — "Firebase not
-    // configured" is a developer concern, not an end-user status line.
-    final anythingToSay =
-        dailyFail || weeklyFail || showAllOk || push.available;
-    if (!anythingToSay) return const SizedBox.shrink();
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        _Section(label: L.notifSectionStatus),
-        MbCard(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              if (dailyFail)
-                _StatusLine(
-                  icon: Icons.alarm_rounded,
-                  color: MbPalette.warning,
-                  text: '${L.notifDailyReminder} — ${L.notifDailyScheduledFail}',
-                ),
-              if (weeklyFail)
-                _StatusLine(
-                  icon: Icons.event_repeat_rounded,
-                  color: MbPalette.warning,
-                  text:
-                      '${L.settingsWeeklySummary} — ${L.notifDailyScheduledFail}',
-                ),
-              if (showAllOk)
-                _StatusLine(
-                  icon: Icons.check_circle_rounded,
-                  color: MbPalette.green,
-                  text: L.notifStatusAllOk(pending),
-                ),
-              if (push.available) ...[
-                _StatusLine(
-                  icon: Icons.cloud_done_outlined,
-                  color: MbPalette.green,
-                  text: '${L.notifPushLabel}: ${L.notifPushOn}',
-                ),
-              ],
-              if (showReason)
-                Padding(
-                  padding: const EdgeInsets.only(top: 2, left: 28),
-                  child: Text(
-                    '${L.notifLastError}: $err',
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      fontFamily: 'NotoSansBengali',
-                      fontSize: 11,
-                      height: 1.4,
-                      color: scheme.onSurfaceVariant,
-                    ),
-                  ),
-                ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 20),
-      ],
-    );
-  }
-}
-
-class _StatusLine extends StatelessWidget {
-  final IconData icon;
-  final Color color;
-  final String text;
-
-  const _StatusLine({
-    required this.icon,
-    required this.color,
-    required this.text,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 7),
-      child: Row(
-        children: [
-          Icon(icon, size: 18, color: color),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Text(
-              text,
-              style: TextStyle(
-                fontFamily: 'NotoSansBengali',
-                fontSize: 13,
-                fontWeight: FontWeight.w600,
-                color: scheme.onSurface,
-              ),
-            ),
-          ),
         ],
       ),
     );

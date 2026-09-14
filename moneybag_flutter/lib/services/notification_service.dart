@@ -21,13 +21,16 @@ import '../state/app_state.dart';
 /// * FCM push           — shown locally when a push arrives in the foreground
 ///
 /// v2.2.3 — "smart notifications": when [MbAppState.smartNotifications] is
-/// on (default) the daily reminder carries REAL numbers — yesterday's
-/// spend, month-to-date and budget-left — refreshed on every app open.
-/// One switch in the notification center reverts to the plain reminder.
-/// Also new: [sendTest] (one-tap sanity check for the user),
-/// [isPermissionGranted] (non-interactive), and the device channel
-/// helpers for battery-optimization + notification settings (the two
-/// classic OEM reasons reminders "don't work" on BD-market phones).
+/// on (default) the daily reminder carries REAL numbers — refreshed on
+/// every app open. v2.2.5 makes them much smarter: budget PACING (how much
+/// per day still fits this month), today-vs-yesterday momentum, month
+/// total, a logging-streak badge and the closest savings goal — all
+/// relevance-ordered and capped at four segments so the body stays
+/// notification-sized. One switch in the notification center reverts to
+/// the plain reminder. Also: [isPermissionGranted] (non-interactive), and
+/// the device channel helpers for battery-optimization + notification
+/// settings (the two classic OEM reasons reminders "don't work" on
+/// BD-market phones).
 ///
 /// Scheduling strategy (v2 fix — reminders now fire on aggressive OEM ROMs):
 /// 1. `alarmClock` — Android's stock-clock mechanism (AlarmManagerCompat
@@ -267,7 +270,7 @@ class MbNotifications {
   // ── scheduled reminders ─────────────────────────────────────────────────
   /// The daily reminder body. Smart mode (default) packs real numbers —
   /// refreshed every time the schedule is re-applied (boot, settings change,
-  /// and now every app resume, so the numbers stay honest).
+  /// and every app resume, so the numbers stay honest).
   String _dailyBody(MbAppState state) {
     final loc = L.stringsFor(state.language);
     if (!state.smartNotifications) return loc.notifDailyBody;
@@ -276,52 +279,131 @@ class MbNotifications {
     final all = state.txView;
     final parts = <String>[];
 
-    // Yesterday's spend — only when there was any.
-    final y = DateTime(now.year, now.month, now.day)
-        .subtract(const Duration(days: 1));
-    final yesterday = MbCalc.totals(
-            MbCalc.between(all, y, DateTime(y.year, y.month, y.day + 1)))
+    // 1) Budget pacing — the most actionable line. Over budget → say it;
+    //    otherwise how much per day still fits until month end.
+    for (final b in state.budgets) {
+      if (b.categoryId != null) continue; // overall budget only
+      final st = MbCalc.budgetStatus(all, now.year, now.month,
+          limitMinor: b.amountMinor, rollover: b.rollover);
+      if (st.isOver) {
+        parts.add(loc.notifSmartOver(state.money(st.remainingMinor.abs())));
+      } else if (st.remainingMinor > 0) {
+        final daysLeft = _daysLeftInMonth(now);
+        if (daysLeft > 0) {
+          parts.add(loc.notifSmartPace(
+              state.money(st.remainingMinor ~/ daysLeft), daysLeft));
+        } else {
+          parts.add(loc.notifSmartLeft(state.money(st.remainingMinor)));
+        }
+      }
+      break; // first overall budget only
+    }
+
+    // 2) Momentum — today's spend so far, else yesterday's.
+    final todayStart = DateTime(now.year, now.month, now.day);
+    final todayTot = MbCalc.totals(MbCalc.between(
+            all, todayStart, todayStart.add(const Duration(days: 1))))
         .expense;
-    if (yesterday > 0) {
+    final yesterday = MbCalc.totals(MbCalc.between(all,
+            todayStart.subtract(const Duration(days: 1)), todayStart))
+        .expense;
+    if (todayTot > 0) {
+      parts.add(loc.notifSmartToday(state.money(todayTot)));
+    } else if (yesterday > 0) {
       parts.add(loc.notifSmartYesterday(state.money(yesterday)));
     }
 
-    // Month-to-date spend.
+    // 3) Month-to-date spend.
     final month =
         MbCalc.totals(MbCalc.forMonth(all, now.year, now.month)).expense;
     if (month > 0) {
       parts.add(loc.notifSmartMonth(state.money(month)));
     }
 
-    // Budget head-room — only with an overall budget that isn't blown.
-    for (final b in state.budgets) {
-      if (b.categoryId != null) continue;
-      final st = MbCalc.budgetStatus(all, now.year, now.month,
-          limitMinor: b.amountMinor, rollover: b.rollover);
-      final left = st.effectiveLimit - st.spentMinor;
-      if (left > 0) {
-        parts.add(loc.notifSmartLeft(state.money(left)));
+    // 4) Engagement badge — the logging streak (3+ days).
+    final streak = _loggingStreak(all, now);
+    if (streak >= 3) parts.add(loc.notifSmartStreak(streak));
+
+    // 5) Savings-goal nudge — the active goal closest to its target
+    //    (only once it has real progress, 25% or more).
+    var bestPct = 0.0;
+    String? bestGoal;
+    for (final g in state.goals) {
+      if (g.completed || g.targetMinor <= 0) continue;
+      final p = state.savedForGoal(g.id) / g.targetMinor * 100;
+      if (p > bestPct) {
+        bestPct = p;
+        bestGoal = g.name;
       }
-      break; // first overall budget only
+    }
+    if (bestGoal != null && bestPct >= 25) {
+      parts.add(loc.notifSmartGoal(bestGoal, state.pct(bestPct.round())));
     }
 
     if (parts.isEmpty) return loc.notifDailyBody;
-    return parts.join(' · ');
+    return parts.take(4).join(' · ');
   }
 
-  /// v2.2.3: fires the daily reminder RIGHT NOW with the current smart
-  /// body — a one-tap "is this thing alive?" check for the user (and for
-  /// us: if the test shows, channels + permission are fine and any missed
-  /// reminder is an OEM/battery issue, not a silent app bug).
-  Future<void> sendTest(MbAppState state) async {
-    if (!_initialized) await init();
-    if (!_initialized) return;
+  // ── smart-body helpers ───────────────────────────────────────────
+  DateTime _dayOf(DateTime d) => DateTime(d.year, d.month, d.day);
+
+  String _keyOf(DateTime d) => '${d.year}-${d.month}-${d.day}';
+
+  /// Days AFTER today left in the current month (today is already running).
+  int _daysLeftInMonth(DateTime now) =>
+      DateTime(now.year, now.month + 1, 0).day - now.day;
+
+  /// Consecutive days (ending today or yesterday) with at least one
+  /// logged transaction — the "logging streak" that keeps the user
+  /// connected to the app.
+  int _loggingStreak(List all, DateTime now) {
+    final days = <String>{};
+    for (final t in all) {
+      days.add(_keyOf(_dayOf(t.date as DateTime)));
+    }
+    var d = _dayOf(now);
+    if (!days.contains(_keyOf(d))) {
+      d = d.subtract(const Duration(days: 1)); // today not logged yet is fine
+    }
+    var streak = 0;
+    while (streak < 400 && days.contains(_keyOf(d))) {
+      streak++;
+      d = d.subtract(const Duration(days: 1));
+    }
+    return streak;
+  }
+
+  /// v2.2.5: the weekly summary body — last-7-day spend, direction vs the
+  /// PREVIOUS 7 days (±5% or more), and this week's goal savings.
+  String _weeklyBody(MbAppState state) {
     final loc = L.stringsFor(state.language);
-    await show(
-      id: _catchUpId,
-      title: loc.appName,
-      body: _dailyBody(state),
-    );
+    final today = _dayOf(DateTime.now());
+    final last7 = MbCalc.totals(MbCalc.between(
+            state.txView,
+            today.subtract(const Duration(days: 6)),
+            today.add(const Duration(days: 1))))
+        .expense;
+    final prev7 = MbCalc.totals(MbCalc.between(
+            state.txView,
+            today.subtract(const Duration(days: 13)),
+            today.subtract(const Duration(days: 6))))
+        .expense;
+
+    final parts = <String>[loc.notifWeeklyBodyLive(state.money(last7))];
+    if (prev7 > 0 && last7 > 0) {
+      final change = (((last7 - prev7) / prev7) * 100).round();
+      if (change.abs() >= 5) parts.add(loc.notifWeeklyVs(change, change > 0));
+    }
+
+    var saved = 0;
+    final since = today.subtract(const Duration(days: 6));
+    for (final c in state.contributions) {
+      if (c.amountMinor > 0 && !_dayOf(c.date as DateTime).isBefore(since)) {
+        saved += c.amountMinor;
+      }
+    }
+    if (saved > 0) parts.add(loc.notifWeeklySaved(state.money(saved)));
+    return parts.join(' · ');
   }
 
   /// Schedules one repeating reminder. Returns the mode name that worked
@@ -471,13 +553,10 @@ class MbNotifications {
       // REAL last-7-day spend baked into the body (refreshed on each open).
       // v2.2.0: `between` is [from, to) over date-normalised entries, so
       // subtracting 7 days + adding 1 actually spanned EIGHT calendar days.
-      // Today + the 6 previous days = a true 7-day window.
-      final spend = MbCalc.totals(MbCalc.between(
-        state.txView,
-        DateTime.now().subtract(const Duration(days: 6)),
-        DateTime.now().add(const Duration(days: 1)),
-      )).expense;
-      final body = loc.notifWeeklyBodyLive(state.money(spend));
+      // Today + the 6 previous days = a true 7-day window. v2.2.5: the
+      // body is built by [_weeklyBody] — spend + week-over-week direction
+      // + goal savings.
+      final body = _weeklyBody(state);
       final now = tz.TZDateTime.now(tz.local);
       var when = tz.TZDateTime(
         tz.local,
