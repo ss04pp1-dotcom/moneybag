@@ -58,12 +58,22 @@ class _ShellScreenState extends State<ShellScreen> with WidgetsBindingObserver {
   static const _reentryThreshold = Duration(minutes: 2);
   static const _offerReposeAfterDismiss = Duration(seconds: 60);
   static const _supportPopupDayKey = 'supportPopupLastDay';
+
+  // v2.2.5 (user-tuned) penalty: cancel the offer or cut the rewarded ad
+  // → interstitials start coming "একটু পর পর" — first after 1 minute, then
+  // every 3 minutes — until the user finally watches one for 30 ad-free
+  // minutes (or ads are turned off remotely).
+  static const _interstitialFirstDelay = Duration(minutes: 1);
+  static const _interstitialEvery = Duration(minutes: 3);
   Timer? _entryPopupTimer;
   Timer? _afterSupportTimer;
   Timer? _periodicPopupTimer;
   Timer? _offerRetryTimer;
+  Timer? _penaltyInterstitialTimer;
   bool _dialogShowing = false;
   bool _entryPopupFired = false;
+  bool _penaltyActive = false;
+  bool _offerWatchPressed = false;
   DateTime? _pausedAt;
   DateTime? _lastOfferClosedAt;
 
@@ -116,6 +126,7 @@ class _ShellScreenState extends State<ShellScreen> with WidgetsBindingObserver {
     _afterSupportTimer?.cancel();
     _periodicPopupTimer?.cancel();
     _offerRetryTimer?.cancel();
+    _penaltyInterstitialTimer?.cancel();
     super.dispose();
   }
 
@@ -130,6 +141,7 @@ class _ShellScreenState extends State<ShellScreen> with WidgetsBindingObserver {
       if (away > _reentryThreshold) _entryPopupFired = false;
       _scheduleEntryPopup();
       _startPeriodicPopupTimer();
+      if (_penaltyActive) _schedulePenaltyTick();
     } else {
       if (state == AppLifecycleState.paused ||
           state == AppLifecycleState.hidden) {
@@ -139,6 +151,7 @@ class _ShellScreenState extends State<ShellScreen> with WidgetsBindingObserver {
       _afterSupportTimer?.cancel();
       _periodicPopupTimer?.cancel();
       _offerRetryTimer?.cancel();
+      _penaltyInterstitialTimer?.cancel();
     }
   }
 
@@ -183,7 +196,7 @@ class _ShellScreenState extends State<ShellScreen> with WidgetsBindingObserver {
     if (!ads.adsEnabled) return;
     // The app-open ad still covers the screen — re-check shortly; the
     // dismiss hook will usually beat this timer anyway.
-    if (ads.isShowingAppOpenAd) {
+    if (ads.isShowingFullScreenAd) {
       _entryPopupTimer = Timer(_popupRetryWhileAdShowing, _onEntryPopupDue);
       return;
     }
@@ -290,16 +303,19 @@ class _ShellScreenState extends State<ShellScreen> with WidgetsBindingObserver {
             _offerReposeAfterDismiss) {
       return;
     }
-    if (_dialogShowing || ads.isShowingAppOpenAd || !_shellIsVisible()) {
+    if (_dialogShowing || ads.isShowingFullScreenAd || !_shellIsVisible()) {
       _offerRetryTimer?.cancel();
       _offerRetryTimer = Timer(_popupRetryDelay, _showAdFreeOffer);
       return;
     }
     _offerRetryTimer?.cancel();
     _dialogShowing = true;
+    _offerWatchPressed = false;
     showDialog(
       context: context,
-      barrierDismissible: false,
+      // v2.2.5 (user request): the offer is always dismissible — tapping
+      // outside cancels it too, never a wall.
+      barrierDismissible: true,
       builder: (ctx) {
         final L = ctx.L;
         final ads = MbAdsService.instance;
@@ -307,15 +323,20 @@ class _ShellScreenState extends State<ShellScreen> with WidgetsBindingObserver {
           title: Text(L.rewardedTitle),
           content: Text(L.rewardedBody),
           actions: [
-            TextButton(
+            // Prominent, bordered cancel — impossible to miss.
+            OutlinedButton(
               onPressed: () => Navigator.of(ctx).pop(),
               child: Text(L.cancel),
             ),
             FilledButton(
               onPressed: () async {
+                _offerWatchPressed = true;
                 Navigator.of(ctx).pop();
                 final earned = await ads.showRewarded();
                 _onRewardResult(earned);
+                // Cut the rewarded ad midway (earned == false) — same
+                // stubborn behaviour as cancelling: interstitials begin.
+                if (mounted && !earned) _startPenaltyInterstitials();
               },
               child: Text(L.rewardedWatch),
             ),
@@ -325,10 +346,62 @@ class _ShellScreenState extends State<ShellScreen> with WidgetsBindingObserver {
     ).then((_) {
       _dialogShowing = false;
       _lastOfferClosedAt = DateTime.now();
+      // Cancelled without even trying (button or outside tap) → the
+      // penalty interstitials start coming "একটু পর পর".
+      if (mounted && !_offerWatchPressed) _startPenaltyInterstitials();
     });
   }
 
+  // ── penalty interstitials ("ঘাড়া" users) ──────────────────────────────
+
+  /// Starts the penalty cadence — an interstitial ~1 minute after the
+  /// refusal, then every 3 minutes. Stops itself when the user finally
+  /// earns an ad-free period or ads are turned off.
+  void _startPenaltyInterstitials() {
+    if (_penaltyActive) return;
+    _penaltyActive = true;
+    _schedulePenaltyTick(first: true);
+  }
+
+  void _schedulePenaltyTick({bool first = false}) {
+    _penaltyInterstitialTimer?.cancel();
+    _penaltyInterstitialTimer = Timer(
+      first ? _interstitialFirstDelay : _interstitialEvery,
+      () {
+        if (!_penaltyActive) return;
+        unawaited(_tryShowPenaltyInterstitial());
+        if (_penaltyActive) _schedulePenaltyTick();
+      },
+    );
+  }
+
+  void _stopPenaltyInterstitials() {
+    _penaltyActive = false;
+    _penaltyInterstitialTimer?.cancel();
+    _penaltyInterstitialTimer = null;
+  }
+
+  Future<void> _tryShowPenaltyInterstitial() async {
+    if (!mounted || !_penaltyActive) return;
+    final ads = MbAdsService.instance;
+    // The user finally watched an ad (ad-free running) or ads are off —
+    // the penalty has done its job.
+    if (!ads.adsEnabled || ads.adFreeActive) {
+      _stopPenaltyInterstitials();
+      return;
+    }
+    // Busy right now (dialog, full-screen ad, pushed route) — the next
+    // tick retries; the interstitial never interrupts the tx editor etc.
+    if (_dialogShowing || ads.isShowingFullScreenAd || !_shellIsVisible()) {
+      return;
+    }
+    await ads.showInterstitial();
+  }
+
   void _onRewardResult(bool earned) {
+    // Watching one ad for 30 ad-free minutes also ends the penalty —
+    // that was the whole deal.
+    if (earned) _stopPenaltyInterstitials();
     if (!mounted) return;
     final L = context.L;
     ScaffoldMessenger.of(context).showSnackBar(

@@ -26,6 +26,12 @@ class MbAdsService extends ChangeNotifier {
   RewardedAd? _rewardedAd;
   bool _rewardedBusy = false;
 
+  // v2.2.5: penalty interstitials — shown periodically when a user
+  // stubbornly cancels the ad-free offer or cuts the rewarded ad midway.
+  InterstitialAd? _interstitialAd;
+  bool _interstitialBusy = false;
+  bool _isShowingInterstitial = false;
+
 
   DateTime? _adFreeUntil;
 
@@ -44,6 +50,10 @@ class MbAdsService extends ChangeNotifier {
   /// True while the app-open ad full-screen content is on screen. Dialogs
   /// must not pop on top of a native ad overlay.
   bool get isShowingAppOpenAd => _isShowingAd;
+
+  /// True while ANY full-screen ad (app-open or interstitial) is on screen.
+  /// Popup logic uses this so a dialog never lands on top of a native ad.
+  bool get isShowingFullScreenAd => _isShowingAd || _isShowingInterstitial;
 
   DateTime? get adFreeUntil => _adFreeUntil;
   bool get adFreeActive {
@@ -94,6 +104,11 @@ class MbAdsService extends ChangeNotifier {
   String get rewardedUnitId => _resolveUnit(
         MbRemoteConfigService.instance.config?.rewardedUnitId ?? '',
         MbConfig.admobTestRewardedUnitId,
+      );
+
+  String get interstitialUnitId => _resolveUnit(
+        MbRemoteConfigService.instance.config?.interstitialUnitId ?? '',
+        MbConfig.admobTestInterstitialUnitId,
       );
 
   // ── SDK init ─────────────────────────────────────────────────────────────
@@ -210,6 +225,87 @@ class MbAdsService extends ChangeNotifier {
 
   // ── app open ad ──────────────────────────────────────────────────────────
 
+  // ── interstitial: penalty for stubborn refusals ─────────────────────
+  //
+  // v2.2.5 (user-tuned): when a user keeps cancelling the ad-free offer
+  // or cuts the rewarded ad midway, the shell starts calling
+  // [showInterstitial] every few minutes — the deal is simple: watch one
+  // ad for 30 ad-free minutes, or keep seeing interstitials.
+
+  /// Loads an interstitial if one isn't ready yet.
+  Future<bool> _ensureInterstitialLoaded() async {
+    if (!adsEnabled) return false;
+    if (_interstitialAd != null) return true;
+    if (_interstitialBusy) return false;
+    if (!await ensureSdk()) return false;
+
+    _interstitialBusy = true;
+    final completer = Completer<bool>();
+    try {
+      await InterstitialAd.load(
+        adUnitId: interstitialUnitId,
+        request: const AdRequest(),
+        adLoadCallback: InterstitialAdLoadCallback(
+          onAdLoaded: (ad) {
+            _interstitialAd = ad;
+            _interstitialBusy = false;
+            if (!completer.isCompleted) completer.complete(true);
+          },
+          onAdFailedToLoad: (error) {
+            debugPrint('InterstitialAd failed: $error');
+            _interstitialBusy = false;
+            if (!completer.isCompleted) completer.complete(false);
+          },
+        ),
+      );
+    } catch (e) {
+      debugPrint('InterstitialAd.load threw: $e');
+      _interstitialBusy = false;
+      return false;
+    }
+    return completer.future;
+  }
+
+  /// Shows a full-screen interstitial if one is ready. Returns true when
+  /// an ad actually played. No-ops while an ad-free period is running or
+  /// while another full-screen ad is already up.
+  Future<bool> showInterstitial() async {
+    if (!adsEnabled || adFreeActive) return false;
+    if (_isShowingAd || _isShowingInterstitial) return false;
+    final loaded = await _ensureInterstitialLoaded();
+    final ad = _interstitialAd;
+    if (!loaded || ad == null) return false;
+
+    _isShowingInterstitial = true;
+    final done = Completer<bool>();
+
+    ad.fullScreenContentCallback = FullScreenContentCallback<InterstitialAd>(
+      onAdDismissedFullScreenContent: (dismissedAd) {
+        dismissedAd.dispose();
+        _interstitialAd = null;
+        _isShowingInterstitial = false;
+        if (!done.isCompleted) done.complete(true);
+      },
+      onAdFailedToShowFullScreenContent: (failedAd, error) {
+        debugPrint('InterstitialAd show failed: $error');
+        failedAd.dispose();
+        _interstitialAd = null;
+        _isShowingInterstitial = false;
+        if (!done.isCompleted) done.complete(false);
+      },
+    );
+
+    try {
+      await ad.show();
+    } catch (e) {
+      debugPrint('InterstitialAd.show threw: $e');
+      _interstitialAd = null;
+      _isShowingInterstitial = false;
+      return false;
+    }
+    return done.future;
+  }
+
   Future<void> loadAppOpenAd({bool showOnLoad = false}) async {
     if (!adsEnabled || adFreeActive) return;
     if (!await ensureSdk()) return;
@@ -274,6 +370,7 @@ class MbAdsService extends ChangeNotifier {
   @override
   void dispose() {
     _rewardedAd?.dispose();
+    _interstitialAd?.dispose();
     super.dispose();
   }
 }
