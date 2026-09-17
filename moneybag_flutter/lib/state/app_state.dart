@@ -35,7 +35,7 @@ class MbAppState extends ChangeNotifier {
 
   // ── settings ────────────────────────────────────────────────────────────
   bool onboarded = false;
-  MbLanguage language = MbLanguage.bangla;
+  MbLanguage language = MbLanguage.english;
   ThemeMode themeMode = ThemeMode.dark;
   bool bengaliDigits = true;
   bool budgetAlerts = true;
@@ -95,9 +95,9 @@ class MbAppState extends ChangeNotifier {
     prefs = await SharedPreferences.getInstance();
     onboarded = prefs.getBool('onboarded') ?? false;
     final lang = prefs.getString('lang');
-    language = lang == 'en'
-        ? MbLanguage.english
-        : (lang == 'bn' ? MbLanguage.bangla : MbLanguage.bangla);
+    language = lang == 'bn'
+        ? MbLanguage.bangla
+        : (lang == 'en' ? MbLanguage.english : MbLanguage.english);
     final theme = prefs.getString('theme');
     themeMode = theme == 'light'
         ? ThemeMode.light
