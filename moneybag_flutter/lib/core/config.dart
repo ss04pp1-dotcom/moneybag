@@ -54,7 +54,7 @@ abstract final class MbConfig {
   static const String admobTestAppId =
       'ca-app-pub-8263768090433893~5101218161';
   static const String admobTestAppOpenUnitId =
-      'ca-app-pub-3940256099942544/9257395921';
+      'ca-app-pub-8263768090433893/9291135802';
   static const String admobTestBannerUnitId =
       'ca-app-pub-8263768090433893/5471919105';
   static const String admobTestInterstitialUnitId =
