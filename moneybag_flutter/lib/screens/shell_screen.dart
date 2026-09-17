@@ -490,7 +490,14 @@ class _ShellScreenState extends State<ShellScreen>
   @override
   Widget build(BuildContext context) {
     final L = context.L;
-    return Scaffold(
+    return PopScope(
+      canPop: _index == 0,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop && _index != 0) {
+          setState(() => _index = 0);
+        }
+      },
+      child: Scaffold(
       body: AnimatedSwitcher(
         duration: const Duration(milliseconds: 220),
         child: _pages[_index],
@@ -548,6 +555,7 @@ class _ShellScreenState extends State<ShellScreen>
           _MbNavItem(icon: Icons.person_rounded, label: L.navProfile),
         ],
       ),
+    ),
     );
   }
 }
