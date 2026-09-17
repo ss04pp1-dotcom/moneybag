@@ -60,7 +60,11 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
     // Group by day.
     final groups = <_DayGroup>[];
     for (final t in txs) {
-      final key = DateTime(t.date.year, t.date.month, t.date.day);
+      // FIX: use local time so that 10:00 PM today doesn't jump to tomorrow if UTC is used, etc.
+      // We take the local year, month, day. 
+      // The date is already stored as DateTime object.
+      final localDate = t.date.toLocal();
+      final key = DateTime(localDate.year, localDate.month, localDate.day);
       if (groups.isEmpty || groups.last.day != key) {
         groups.add(_DayGroup(day: key));
       }

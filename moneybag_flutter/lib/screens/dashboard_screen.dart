@@ -78,6 +78,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
     // Today's live totals — power the floating "আজকের হিসাব" card.
     final todayStart = DateTime(now.year, now.month, now.day);
+    // When using MbCalc.between for "today", the end bound is exclusive, so todayStart.add(Duration(days: 1)) 
+    // covers from 00:00:00 up to (but not including) 00:00:00 of the next day, which captures all of today.
     final todayT = MbCalc.totals(MbCalc.between(
         all, todayStart, todayStart.add(const Duration(days: 1))));
 
