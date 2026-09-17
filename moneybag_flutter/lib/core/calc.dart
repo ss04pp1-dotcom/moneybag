@@ -112,10 +112,7 @@ abstract final class MbCalc {
       .toList(growable: false);
 
   static List<MbTx> between(List<MbTx> txs, DateTime from, DateTime to) => txs
-      .where((t) {
-        final d = t.date.toLocal();
-        return !d.isBefore(from) && d.isBefore(to);
-      })
+      .where((t) => !t.date.isBefore(from) && t.date.isBefore(to))
       .toList(growable: false);
 
   static List<MbTx> forYear(List<MbTx> txs, int year) =>
